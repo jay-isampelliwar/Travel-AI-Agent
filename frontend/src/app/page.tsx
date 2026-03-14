@@ -2,6 +2,8 @@
 
 import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type Message = {
   id: number;
@@ -262,7 +264,15 @@ export default function Home() {
                       >
                         {msg.role === "user" ? "You" : "Assistant"}
                       </p>
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      {msg.role === "assistant" ? (
+                        <div className="text-[15px] leading-relaxed">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      )}
                     </div>
                   </div>
                 );
