@@ -5,7 +5,7 @@ export async function POST(request: Request) {
     return new Response("Invalid message", { status: 400 });
   }
 
-  const backendResponse = await fetch("http://localhost:8000/agent", {
+  const backendResponse = await fetch("https://sylvie-cytostomal-zeke.ngrok-free.dev/agent", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
