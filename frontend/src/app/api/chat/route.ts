@@ -5,13 +5,16 @@ export async function POST(request: Request) {
     return new Response("Invalid message", { status: 400 });
   }
 
-  const backendResponse = await fetch("https://sylvie-cytostomal-zeke.ngrok-free.dev/agent", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const backendResponse = await fetch(
+    "https://sylvie-cytostomal-zeke.ngrok-free.dev/agent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_message: body.message }),
     },
-    body: JSON.stringify({ user_message: body.message }),
-  });
+  );
 
   if (!backendResponse.ok || !backendResponse.body) {
     return new Response("Backend error", { status: 502 });
@@ -24,4 +27,3 @@ export async function POST(request: Request) {
     },
   });
 }
-
