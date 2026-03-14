@@ -44,5 +44,7 @@ async def run_agent(payload: AgentRequest) -> str:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    # Run the local FastAPI app directly on port 8080 so that
+    # ngrok can successfully forward traffic to http://localhost:8080.
+    uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)
 
