@@ -23,7 +23,7 @@ from .prompts import (
 
 )
 from .model import ChatMessage, TravelTiming, TravelRoute, ThingsToDo, QueryGeneratorModel
-from .utils import get_current_date_time
+from .utils import get_current_date_time, format_search_results
 
 
 class TravelIntelligenceAgent:
@@ -109,7 +109,7 @@ class TravelIntelligenceAgent:
             search_results = self.search_service.invoke({"query": query})
             all_search_results.extend(search_results)
 
-        formatted_context = self._format_search_results(all_search_results)
+        formatted_context = format_search_results(all_search_results)
 
         travel_timings = self.llm.with_structured_output(TravelTiming, strict=True).invoke(
             TIMING_EXTRACTOR_PROMPTS.format(
@@ -146,20 +146,6 @@ class TravelIntelligenceAgent:
             "transportation": travel_route.to_dict(),
             "things_to_do": things_to_do.to_dict(),
         }
-
-    def _format_search_results(self, search_results) -> str:
-        formatted = []
-        for i, result in enumerate(search_results, 1):
-            if isinstance(result, dict):
-                formatted.append(
-                    f"[Source {i}]: {result.get('title', 'No Title')}\n"
-                    f"URL: {result.get('url', '')}\n"
-                    f"Content: {result.get('content', result.get('snippet', ''))}\n"
-                )
-            else:
-                # result is a plain string
-                formatted.append(f"[Source {i}]: {result}\n")
-        return "\n---\n".join(formatted)
 
     @observe(name=PLANNER_NODE)
     def _planner(self, state: AgentState) -> Dict:
