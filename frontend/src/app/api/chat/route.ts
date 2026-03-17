@@ -29,10 +29,12 @@ export async function POST(request: Request) {
     follow_up_questions: string[];
   };
 
-  return new Response(JSON.stringify(result.message), {
+  // Return ONLY the message text, not the whole JSON, so the
+  // frontend shows just the assistant's message.
+  return new Response(result.message, {
     status: 200,
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": "application/json",
     },
   });
 }
