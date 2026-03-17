@@ -27,6 +27,16 @@ class ChatMessage(BaseModel):
         description="Date of the journey travelers can choose"
     )
 
+class QueryGeneratorModel(BaseModel):
+    queries: List[str] = Field(
+        description="List of queries used to travel journeys"
+    )
+
+    def to_dict(self):
+        return {
+            "queries": self.queries,
+        }
+
 class TravelTiming(BaseModel):
     best_time_to_visit: str = Field(
         description="Best months or season to visit the destination"

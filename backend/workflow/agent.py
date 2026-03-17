@@ -1,13 +1,16 @@
+from datetime import datetime
 from typing import Dict, Literal
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
+from langfuse.langchain import CallbackHandler
+from langfuse import observe
 from langgraph.prebuilt import ToolNode, tools_condition
 from tenacity import retry_unless_exception_type
 from langchain_tavily import TavilySearch
-from .constants import PLANNER_NODE, SEARCH_NODE, CHAT_NODE, QUERY_GENERATOR_NODE
+from .constants import PLANNER_NODE, SEARCH_NODE, CHAT_NODE, QUERY_GENERATOR_NODE, INIT_NODE
 from .agent_state import AgentState
 from .prompts import (
     SEARCH_QUERY_GENERATOR_PROMPT,
@@ -19,9 +22,9 @@ from .prompts import (
     TRIP_PLANNER_PROMPT,
 
 )
-from .model import ChatMessage, TravelTiming, TravelTips, TravelRoute, ThingsToDo
+from .model import ChatMessage, TravelTiming, TravelRoute, ThingsToDo, QueryGeneratorModel
+from .utils import get_current_date_time
 
-# Im Planning Trip to japan from Mumbai, on April 2nd week 2026 for 10 days.
 
 class TravelIntelligenceAgent:
 
@@ -34,10 +37,19 @@ class TravelIntelligenceAgent:
         )
         self.graph = self._build_graph()
         self.search_service = TavilySearch(max_results=5)
+        self.langfuse_handler = CallbackHandler()
 
+    @observe(name=INIT_NODE)
+    def _init_node(self, _: AgentState) -> Dict:
+        return {
+            "current_date_time" : get_current_date_time(),
+        }
+
+    @observe(name=CHAT_NODE)
     def _chat_node(self, state: AgentState) -> Dict:
 
-        system_instruction = SystemMessage(content=SYSTEM_INSTRUCTION)
+        current_date_time = state["current_date_time"]
+        system_instruction = SystemMessage(content=SYSTEM_INSTRUCTION.format(current_date_time=current_date_time))
 
         messages = [system_instruction] + state["messages"]
         response = self.llm.with_structured_output(ChatMessage, strict=True).invoke(messages)
@@ -57,6 +69,7 @@ class TravelIntelligenceAgent:
 
         return result
 
+    @observe(name=QUERY_GENERATOR_NODE)
     def _query_generator(self, state: AgentState) -> Dict:
 
         print(f"NODE => {QUERY_GENERATOR_NODE}")
@@ -76,20 +89,27 @@ class TravelIntelligenceAgent:
             )
         )
 
-        llm_response = self.llm.invoke([system_prompt] + [user_query])
+        llm_response : QueryGeneratorModel = self.llm.with_structured_output(QueryGeneratorModel, strict=True).invoke([system_prompt] + [user_query])
 
         print("Query node completed execution")
-        print(llm_response.content.strip())
+        print(llm_response.to_dict())
 
         return {
-            "query": llm_response.content.strip(),
+            "web_search_queries": llm_response.queries,
         }
 
+    @observe(name=SEARCH_NODE)
     def _searcher(self, state: AgentState) -> Dict:
 
-        query = state["query"]
-        search_results = self.search_service.invoke({"query": query})
-        formatted_context = self._format_search_results(search_results)
+        web_search_queries = state["web_search_queries"]
+
+        # Loop through each query and accumulate results
+        all_search_results = []
+        for query in web_search_queries:
+            search_results = self.search_service.invoke({"query": query})
+            all_search_results.extend(search_results)
+
+        formatted_context = self._format_search_results(all_search_results)
 
         travel_timings = self.llm.with_structured_output(TravelTiming, strict=True).invoke(
             TIMING_EXTRACTOR_PROMPTS.format(
@@ -118,14 +138,6 @@ class TravelIntelligenceAgent:
             )
         )
 
-        travel_tips = self.llm.with_structured_output(TravelTips, strict=True).invoke(
-            TIPS_EXTRACTOR_PROMPT.format(
-                context=formatted_context,
-                destination=state["destination"],
-                travel_date=state["travel_date"],
-                duration_days=state["travel_duration"],
-            )
-        )
 
         print("Search node completed execution")
 
@@ -133,7 +145,6 @@ class TravelIntelligenceAgent:
             "travel_timings": travel_timings.to_dict(),
             "transportation": travel_route.to_dict(),
             "things_to_do": things_to_do.to_dict(),
-            "travel_tips": travel_tips.to_dict(),
         }
 
     def _format_search_results(self, search_results) -> str:
@@ -150,6 +161,7 @@ class TravelIntelligenceAgent:
                 formatted.append(f"[Source {i}]: {result}\n")
         return "\n---\n".join(formatted)
 
+    @observe(name=PLANNER_NODE)
     def _planner(self, state: AgentState) -> Dict:
 
         planner_system_prompt = TRIP_PLANNER_PROMPT.format(
@@ -172,6 +184,7 @@ class TravelIntelligenceAgent:
             "full_trip_plan" : llm_response.content.strip(),
         }
 
+    @observe(name="Router")
     def _router(self, state: AgentState):
 
         if (
@@ -188,12 +201,15 @@ class TravelIntelligenceAgent:
 
         graph_builder = StateGraph(AgentState)
 
+
+        graph_builder.add_node(INIT_NODE, self._init_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
         graph_builder.add_node(QUERY_GENERATOR_NODE, self._query_generator)
         graph_builder.add_node(SEARCH_NODE, self._searcher)
         graph_builder.add_node(PLANNER_NODE, self._planner)
 
-        graph_builder.add_edge(START, CHAT_NODE),
+        graph_builder.add_edge(START, INIT_NODE),
+        graph_builder.add_edge(INIT_NODE, CHAT_NODE),
         graph_builder.add_conditional_edges(CHAT_NODE, self._router, {
             QUERY_GENERATOR_NODE: QUERY_GENERATOR_NODE,
             END: END
