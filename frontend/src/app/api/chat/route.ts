@@ -16,11 +16,20 @@ export async function POST(request: Request) {
     },
   );
 
-  if (!backendResponse.ok || !backendResponse.body) {
+  if (!backendResponse.ok) {
     return new Response("Backend error", { status: 502 });
   }
 
-  return new Response(backendResponse.body, {
+  // Backend now returns JSON: { message, ui_type, data, follow_up_questions }.
+  // For the existing UI, we only forward the `message` field as plain text.
+  const result = (await backendResponse.json()) as {
+    message: string;
+    ui_type: string;
+    data: unknown;
+    follow_up_questions: string[];
+  };
+
+  return new Response(JSON.stringify(result.message), {
     status: 200,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",

@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage
 from workflow.agent import TravelIntelligenceAgent
 from dotenv import load_dotenv
@@ -10,6 +11,12 @@ load_dotenv()
 class AgentRequest(BaseModel):
     user_message: str
 
+
+class AgentResponse(BaseModel):
+    message: str
+    ui_type: str = "None"
+    data: Dict[str, Any]
+    follow_up_questions: List[str]
 
 app = FastAPI(title="Travel Intelligence Agent API")
 
@@ -23,8 +30,8 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.post("/agent", response_model=str)
-async def run_agent(payload: AgentRequest) -> str:
+@app.post("/agent", response_model=AgentResponse)
+async def run_agent(payload: AgentRequest) -> AgentResponse:
     result = agent.graph.invoke(
         {
             "messages": [
@@ -38,7 +45,14 @@ async def run_agent(payload: AgentRequest) -> str:
 
     answer = result["messages"][-1].content
 
-    return answer
+    # For now, return the original message with dummy values
+    # for ui_type, data, and follow_up_questions.
+    return AgentResponse(
+        message=answer,
+        ui_type="None",
+        data={},
+        follow_up_questions=["", ""],
+    )
 
 
 if __name__ == "__main__":
