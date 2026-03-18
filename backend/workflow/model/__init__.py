@@ -4,6 +4,7 @@ from .things_to_do import Activity, ThingsToDo
 from .travel_route import TransportOption, TravelRoute
 from .travel_timing import TravelTiming
 from .travel_tips import TravelTip, TravelTips
+from .hotel_restaurant_search import HotelRestaurantSearch, ResultItem
 
 __all__ = [
     "Activity",
@@ -15,5 +16,7 @@ __all__ = [
     "TravelTip",
     "TravelTips",
     "TravelTiming",
+    "HotelRestaurantSearch",
+    "ResultItem",
 ]
 

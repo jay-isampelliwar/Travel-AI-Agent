@@ -18,6 +18,7 @@ class AgentState(MessagesState):
     destination: Optional[str]
     travel_duration: Optional[int]
     travel_date: Optional[str]
+
     current_date_time: Optional[str]
     travel_timings: Optional[dict]
     transportation: Optional[dict]
@@ -25,3 +26,6 @@ class AgentState(MessagesState):
     travel_tips: Optional[dict]
     full_trip_plan: Optional[str]
     web_search_queries: Optional[list[str]]
+
+    ui_type: Optional[str]
+    hotel_search_results: Optional[dict]

@@ -1,4 +1,5 @@
 from typing import Dict, Literal
+import os
 import logging
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -36,6 +37,7 @@ from .constants import (
     GET_PLACE_PICTURES_INTENT,
     CHAT_INTENT,
     INTENT_TYPES,
+    TOOLS_NODE,
 )
 from .agent_state import AgentState
 from .prompts import (
@@ -46,11 +48,13 @@ from .prompts import (
     ROUTE_EXTRACTOR_PROMPTS,
     TRIP_PLANNER_PROMPT,
     INTENT_CLASSIFIER_PROMPTS,
-
+    HOTEL_RESTAURANT_PROMPT
 )
-from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, TravelTiming
+from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, TravelTiming, HotelRestaurantSearch
 from .utils import get_current_date_time, format_search_results, has_all_required_trip_fields
+from .tool_manager import ToolManager
 
+# Im Planning a trip to Tokyo, Japan From Mumbai, and I have budget of 150K
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -69,9 +73,12 @@ class TravelIntelligenceAgent:
         self.llm = ChatOpenAI(
             model="gpt-4o-mini"
         )
-        self.graph = self._build_graph()
         self.search_service = TavilySearch(max_results=5)
         self.langfuse_handler = CallbackHandler()
+        self.tool_manager = ToolManager(
+            tavily_search=self.search_service,
+        )
+        self.graph = self._build_graph()
 
     @observe(name=INIT_NODE)
     def _init_node(self, _: AgentState) -> Dict:
@@ -158,8 +165,23 @@ class TravelIntelligenceAgent:
     @observe(name=HOTEL_RESTAURANT_SEARCH_NODE)
     def _hotel_restaurant_search_intent(self, state: AgentState) -> Dict:
         logger.info("%s", HOTEL_RESTAURANT_SEARCH_NODE)
+
+        city_name = state.get("destination") or ""
+        date = state.get("travel_date") or ""
+        current_date = state.get("current_date_time") or ""
+
+        results = self.llm.with_structured_output(HotelRestaurantSearch).invoke(
+            [SystemMessage(content=HOTEL_RESTAURANT_PROMPT.format(
+                city=city_name,
+                date=date,
+                current_date=current_date,
+            ))]
+        )
+
+        logger.info("%s", results)
         return {
-            **state
+            "ui_type": "hotel_search_ui",
+            "hotel_search_results": results.to_dict(),
         }
 
     @observe(name=UPDATE_TRIP_NODE)
@@ -318,7 +340,9 @@ class TravelIntelligenceAgent:
 
         graph_builder = StateGraph(AgentState)
 
+        tools = self.tool_manager.get_tools()
 
+        graph_builder.add_node(TOOLS_NODE, ToolNode(tools))
         graph_builder.add_node(INIT_NODE, self._init_node)
         graph_builder.add_node(INTENT_CLASSIFIER_NODE, self._chat_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
@@ -371,6 +395,16 @@ class TravelIntelligenceAgent:
         graph_builder.add_edge(QUERY_GENERATOR_NODE, SEARCH_NODE)
         graph_builder.add_edge(SEARCH_NODE, PLANNER_NODE)
         graph_builder.add_edge(PLANNER_NODE, END)
+        graph_builder.add_edge(HOTEL_BOOKING_NODE, END)  # TODO: Implement user details collection for hotel booking
+
+        # Tool Calling mapper
+        graph_builder.add_conditional_edges(
+            HOTEL_RESTAURANT_SEARCH_NODE,
+            tools_condition,
+            {TOOLS_NODE: TOOLS_NODE, END: END}
+        )
+        # get tool call result back to node
+        graph_builder.add_edge(TOOLS_NODE, HOTEL_RESTAURANT_SEARCH_NODE)
 
         agent_memory = MemorySaver()
 
