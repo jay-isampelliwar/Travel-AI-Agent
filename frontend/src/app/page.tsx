@@ -4,6 +4,11 @@ import type { FormEvent, KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  type HotelResultItem,
+  HotelSearchResults,
+  HotelSearchResultsSkeleton,
+} from "../components/HotelSearchResults";
 
 type Message = {
   id: number;
@@ -11,23 +16,26 @@ type Message = {
   content: string;
 };
 
-function cleanAssistantText(raw: string): string {
-  let text = raw;
+type ChatUiType = "hotel_search_ui" | "None" | string;
 
-  if (text.startsWith('"')) {
-    text = text.slice(1);
-  }
-  if (text.endsWith('"')) {
-    text = text.slice(0, -1);
-  }
-
-  return text.replace(/\\n/g, "\n");
-}
+type ChatResponse = {
+  message: string;
+  ui_type: ChatUiType | ChatUiType[];
+  data: {
+    results?: HotelResultItem[];
+    [key: string]: unknown;
+  };
+  follow_up_questions: string[];
+};
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hotelResults, setHotelResults] = useState<HotelResultItem[] | null>(
+    null,
+  );
+  const [isHotelLoading, setIsHotelLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -70,37 +78,40 @@ export default function Home() {
         body: JSON.stringify({ message: trimmed }),
       });
 
-      if (!response.body) {
-        throw new Error("No response body");
+      if (!response.ok) {
+        throw new Error("Request failed");
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const json = (await response.json()) as ChatResponse;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value) continue;
+      const cleanedMessage =
+        typeof json.message === "string" ? json.message : String(json.message);
 
-        accumulated += decoder.decode(value, { stream: true });
-        const cleaned = cleanAssistantText(accumulated);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMessage.id && msg.role === "assistant"
+            ? { ...msg, content: cleanedMessage }
+            : msg,
+        ),
+      );
 
-        setMessages((prev) => {
-          const next = [...prev];
-          const index = next.findIndex(
-            (message) =>
-              message.role === "assistant" &&
-              message.id === assistantMessage.id,
-          );
-          if (index !== -1) {
-            next[index] = {
-              ...next[index],
-              content: cleaned,
-            };
-          }
-          return next;
-        });
+      const uiTypes = Array.isArray(json.ui_type)
+        ? json.ui_type
+        : [json.ui_type];
+      const hasHotelUi = uiTypes.includes("hotel_search_ui");
+      const hotelList = (json.data?.results ?? []) as HotelResultItem[];
+
+      if (hasHotelUi && hotelList.length > 0) {
+        setIsHotelLoading(true);
+        setHotelResults(null);
+
+        setTimeout(() => {
+          setHotelResults(hotelList);
+          setIsHotelLoading(false);
+        }, 500);
+      } else {
+        setIsHotelLoading(false);
+        setHotelResults(null);
       }
     } catch {
       setMessages((prev) => [
@@ -111,6 +122,8 @@ export default function Home() {
           content: "There was an error talking to the backend.",
         },
       ]);
+      setHotelResults(null);
+      setIsHotelLoading(false);
     } finally {
       setIsLoading(false);
     }
@@ -182,7 +195,7 @@ export default function Home() {
         {/* Header */}
         <header className="mb-5 flex items-center justify-between border-b border-stone-200 pb-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white">
               <GlobeIcon size={18} />
             </div>
             <div>
@@ -201,7 +214,7 @@ export default function Home() {
         </header>
 
         {/* Chat window */}
-        <section className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <section className="flex flex-1 min-h-0 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
           {/* Messages */}
           <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-y-auto p-6">
             {messages.length === 0 ? (
@@ -242,8 +255,8 @@ export default function Home() {
                     }`}
                   >
                     {/* Avatar — assistant only */}
-                    {msg.role === "assistant" && (
-                      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-400">
+                      {msg.role === "assistant" && (
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-400">
                         <GlobeIcon size={14} />
                       </div>
                     )}
@@ -282,7 +295,7 @@ export default function Home() {
             {/* Typing indicator */}
             {isLoading && (
               <div className="flex items-end gap-2.5">
-                <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-400">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-400">
                   <GlobeIcon size={14} />
                 </div>
                 <div className="rounded-2xl rounded-bl-sm border border-stone-200 bg-stone-50 px-4 py-3.5">
@@ -298,30 +311,39 @@ export default function Home() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input bar */}
-          <form
-            onSubmit={handleSubmit}
-            className="flex items-end gap-2.5 border-t border-stone-200 bg-stone-50 px-4 py-3.5"
-          >
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask about destinations, itineraries, costs…"
-              className="flex-1 resize-none overflow-hidden rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-lg text-neutral-900 placeholder:text-stone-300 outline-none transition-colors focus:border-stone-400"
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              aria-label="Send message"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-all hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              <PlaneIcon />
-            </button>
-          </form>
+          {isHotelLoading ? (
+            <HotelSearchResultsSkeleton />
+          ) : (
+            hotelResults &&
+            hotelResults.length > 0 && (
+              <HotelSearchResults results={hotelResults} />
+            )
+          )}
         </section>
+
+        {/* Input bar */}
+        <form
+          onSubmit={handleSubmit}
+          className="mt-2 flex items-end gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5"
+        >
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about destinations, itineraries, costs…"
+            className="flex-1 resize-none overflow-hidden rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-lg text-neutral-900 placeholder:text-stone-300 outline-none transition-colors focus:border-stone-400"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            aria-label="Send message"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-all hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <PlaneIcon />
+          </button>
+        </form>
       </main>
     </div>
   );
