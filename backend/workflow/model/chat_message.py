@@ -21,4 +21,8 @@ class ChatMessage(BaseModel):
         default=None,
         description="Date of the journey travelers can choose",
     )
+    budget: Optional[str] = Field(
+        default=None,
+        description="Budget of the journey travelers can choose",
+    )
 

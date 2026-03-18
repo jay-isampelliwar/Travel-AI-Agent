@@ -26,6 +26,16 @@ from .constants import (
     SEARCH_ALTERNATIVE_ROUTES_NODE,
     LOCAL_ATTRACTIONS_NODE,
     GET_PLACE_PICTURES_NODE,
+    EMERGENCY_TRAVEL_ASSISTANT_INTENT,
+    PLAN_TRIP_INTENT,
+    HOTEL_RESTAURANT_SEARCH_INTENT,
+    UPDATE_TRIP_INTENT,
+    TRAVEL_TIME_CALCULATION_INTENT,
+    HOTEL_BOOKING_INTENT,
+    SEARCH_ALTERNATIVE_ROUTES_INTENT,
+    LOCAL_ATTRACTIONS_INTENT,
+    GET_PLACE_PICTURES_INTENT,
+    CHAT_INTENT,
     INTENT_TYPES,
 )
 from .agent_state import AgentState
@@ -61,14 +71,22 @@ class TravelIntelligenceAgent:
 
     @observe(name=INTENT_CLASSIFIER_NODE)
     def _intent_classifier(self, state: AgentState) -> INTENT_TYPES:
-        
-        user_query = state["messages"][-1].content
-        system_prompt = SystemMessage(content=INTENT_CLASSIFIER_PROMPTS.format(query=user_query))
-        intent = self.llm.invoke([system_prompt])
-        intent = intent.content.strip()
+
+        print(INTENT_CLASSIFIER_NODE)
 
         if not has_all_required_trip_fields(state):
+            print(f"Intent: {CHAT_NODE}")
             return CHAT_NODE
+
+        messages = state["messages"]
+        messages_for_prompt = messages[-10:] if len(messages) > 10 else messages
+        user_context = "\n".join([message.content for message in messages_for_prompt])
+        system_prompt = SystemMessage(content=INTENT_CLASSIFIER_PROMPTS.format(context=user_context))
+        intent = self.llm.invoke([system_prompt])
+        # Normalize intent name to match classifier constants
+        intent = intent.content.strip().upper()
+
+        print(f"Intent: {intent}")
 
         return intent
 
@@ -76,10 +94,25 @@ class TravelIntelligenceAgent:
     def _chat_node(self, state: AgentState) -> Dict:
 
         current_date_time = state["current_date_time"]
-        system_instruction = SystemMessage(content=SYSTEM_INSTRUCTION.format(current_date_time=current_date_time))
+        source = state.get("source") or ""
+        destination = state.get("destination") or ""
+        travel_dates = state.get("travel_date") or ""
+        duration = str(state.get("travel_duration") or "")
+        budget = state.get("budget") or ""
+
+        system_instruction = SystemMessage(
+            content=SYSTEM_INSTRUCTION.format(
+                current_date_time=current_date_time,
+                source=source,
+                destination=destination,
+                travel_dates=travel_dates,
+                duration=duration,
+                budget=budget,
+            )
+        )
 
         messages = [system_instruction] + state["messages"]
-        response = self.llm.with_structured_output(ChatMessage, strict=True).invoke(messages)
+        response: ChatMessage = self.llm.with_structured_output(ChatMessage, strict=True).invoke(messages)
 
         result = {
             "messages": [AIMessage(content=response.ai_message)]
@@ -93,6 +126,8 @@ class TravelIntelligenceAgent:
             result["travel_duration"] = response.travel_duration
         if response.travel_date:
             result["travel_date"] = response.travel_date
+        if response.budget:
+            result["budget"] = response.budget
 
         return result
 
@@ -185,7 +220,6 @@ class TravelIntelligenceAgent:
         travel_timings = state["travel_timings"],
         transportation = state["transportation"],
         things_to_do   = state["things_to_do"],
-        travel_tips    = state["travel_tips"],
         )
 
         llm_response = self.llm.invoke([planner_system_prompt])
@@ -197,18 +231,18 @@ class TravelIntelligenceAgent:
             "full_trip_plan" : llm_response.content.strip(),
         }
 
-    @observe(name="Router")
-    def _router(self, state: AgentState):
+    # @observe(name="Router")
+    # def _router(self, state: AgentState):
 
-        if (
-                state.get("source")
-                and state.get("destination")
-                and state.get("travel_duration")
-                and state.get("travel_date")
-        ):
-            return QUERY_GENERATOR_NODE
+    #     if (
+    #             state.get("source")
+    #             and state.get("destination")
+    #             and state.get("travel_duration")
+    #             and state.get("travel_date")
+    #     ):
+    #         return QUERY_GENERATOR_NODE
 
-        return END
+    #     return END
 
     def _build_graph(self) :
 
@@ -216,20 +250,57 @@ class TravelIntelligenceAgent:
 
 
         graph_builder.add_node(INIT_NODE, self._init_node)
+        graph_builder.add_node(INTENT_CLASSIFIER_NODE, self._chat_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
+        graph_builder.add_node(EMERGENCY_TRAVEL_ASSISTANT_NODE, self._emergency_travel_assistant_intent)
+        graph_builder.add_node(PLAN_TRIP_NODE, self._plan_trip_intent)
+        graph_builder.add_node(HOTEL_RESTAURANT_SEARCH_NODE, self._hotel_restaurant_search_intent)
+        graph_builder.add_node(UPDATE_TRIP_NODE, self._update_trip_intent)
+        graph_builder.add_node(TRAVEL_TIME_CALCULATION_NODE, self._travel_time_calculation_intent)
+        graph_builder.add_node(HOTEL_BOOKING_NODE, self._hotel_booking_intent)
+        graph_builder.add_node(SEARCH_ALTERNATIVE_ROUTES_NODE, self._search_alternative_routes_intent)
+        graph_builder.add_node(LOCAL_ATTRACTIONS_NODE, self._local_attractions_intent)
+        graph_builder.add_node(GET_PLACE_PICTURES_NODE, self._get_place_pictures_intent)
+
+
         graph_builder.add_node(QUERY_GENERATOR_NODE, self._query_generator)
         graph_builder.add_node(SEARCH_NODE, self._searcher)
         graph_builder.add_node(PLANNER_NODE, self._planner)
 
-        graph_builder.add_edge(START, INIT_NODE),
-        graph_builder.add_edge(INIT_NODE, CHAT_NODE),
-        graph_builder.add_conditional_edges(CHAT_NODE, self._router, {
-            QUERY_GENERATOR_NODE: QUERY_GENERATOR_NODE,
-            END: END
-        })
-        graph_builder.add_edge(QUERY_GENERATOR_NODE, SEARCH_NODE),
-        graph_builder.add_edge(SEARCH_NODE, PLANNER_NODE),
-        graph_builder.add_edge(PLANNER_NODE, END),
+
+        graph_builder.add_edge(START, INIT_NODE)
+        graph_builder.add_edge(INIT_NODE, INTENT_CLASSIFIER_NODE)
+        graph_builder.add_conditional_edges(
+            INTENT_CLASSIFIER_NODE,
+            self._intent_classifier,
+            {
+                CHAT_INTENT: CHAT_NODE,
+                EMERGENCY_TRAVEL_ASSISTANT_INTENT: EMERGENCY_TRAVEL_ASSISTANT_NODE,
+                PLAN_TRIP_INTENT: PLAN_TRIP_NODE,
+                HOTEL_RESTAURANT_SEARCH_INTENT: HOTEL_RESTAURANT_SEARCH_NODE,
+                UPDATE_TRIP_INTENT: UPDATE_TRIP_NODE,
+                TRAVEL_TIME_CALCULATION_INTENT: TRAVEL_TIME_CALCULATION_NODE,
+                HOTEL_BOOKING_INTENT: HOTEL_BOOKING_NODE,
+                SEARCH_ALTERNATIVE_ROUTES_INTENT: SEARCH_ALTERNATIVE_ROUTES_NODE,
+                LOCAL_ATTRACTIONS_INTENT: LOCAL_ATTRACTIONS_NODE,
+                GET_PLACE_PICTURES_INTENT: GET_PLACE_PICTURES_NODE,
+            },
+        )
+
+        graph_builder.add_edge(CHAT_NODE, END)
+        graph_builder.add_edge(EMERGENCY_TRAVEL_ASSISTANT_NODE, QUERY_GENERATOR_NODE)
+        graph_builder.add_edge(PLAN_TRIP_NODE, QUERY_GENERATOR_NODE)
+        graph_builder.add_edge(HOTEL_RESTAURANT_SEARCH_NODE, END)
+        graph_builder.add_edge(UPDATE_TRIP_NODE, QUERY_GENERATOR_NODE)
+        graph_builder.add_edge(TRAVEL_TIME_CALCULATION_NODE, QUERY_GENERATOR_NODE)
+        graph_builder.add_edge(HOTEL_BOOKING_NODE, END) # TODO: Implement user details collection for hotel booking
+        graph_builder.add_edge(SEARCH_ALTERNATIVE_ROUTES_NODE, SEARCH_NODE)
+        graph_builder.add_edge(LOCAL_ATTRACTIONS_NODE, SEARCH_NODE)
+        graph_builder.add_edge(GET_PLACE_PICTURES_NODE, SEARCH_NODE)
+
+        graph_builder.add_edge(QUERY_GENERATOR_NODE, SEARCH_NODE)
+        graph_builder.add_edge(SEARCH_NODE, PLANNER_NODE)
+        graph_builder.add_edge(PLANNER_NODE, END)
 
         agent_memory = MemorySaver()
 
