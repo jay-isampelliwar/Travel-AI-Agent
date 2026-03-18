@@ -26,6 +26,7 @@ from .constants import (
     SEARCH_ALTERNATIVE_ROUTES_NODE,
     LOCAL_ATTRACTIONS_NODE,
     GET_PLACE_PICTURES_NODE,
+    INTENT_TYPES,
 )
 from .agent_state import AgentState
 from .prompts import (
@@ -36,10 +37,11 @@ from .prompts import (
     ROUTE_EXTRACTOR_PROMPTS,
     TIPS_EXTRACTOR_PROMPT,
     TRIP_PLANNER_PROMPT,
+    INTENT_CLASSIFIER_PROMPTS,
 
 )
 from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, TravelTiming
-from .utils import get_current_date_time, format_search_results
+from .utils import get_current_date_time, format_search_results, has_all_required_trip_fields
 
 
 class TravelIntelligenceAgent:
@@ -60,6 +62,19 @@ class TravelIntelligenceAgent:
         return {
             "current_date_time" : get_current_date_time(),
         }
+
+    @observe(name=INTENT_CLASSIFIER_NODE)
+    def _intent_classifier(self, state: AgentState) -> INTENT_TYPES:
+        
+        user_query = state["messages"][-1].content
+        system_prompt = SystemMessage(content=INTENT_CLASSIFIER_PROMPTS.format(query=user_query))
+        intent = self.llm.invoke([system_prompt])
+        intent = intent.content.strip()
+
+        if not has_all_required_trip_fields(state):
+            return CHAT_NODE
+
+        return intent
 
     @observe(name=CHAT_NODE)
     def _chat_node(self, state: AgentState) -> Dict:
