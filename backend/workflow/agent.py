@@ -85,8 +85,8 @@ class TravelIntelligenceAgent:
         logger.info("%s", INTENT_CLASSIFIER_NODE)
 
         if not has_all_required_trip_fields(state):
-            logger.info("intent=%s", CHAT_NODE)
-            return CHAT_NODE
+            logger.info("intent=%s", CHAT_INTENT)
+            return CHAT_INTENT
 
         messages = state["messages"]
         messages_for_prompt = messages[-10:] if len(messages) > 10 else messages
