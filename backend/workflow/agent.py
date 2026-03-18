@@ -8,7 +8,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from langfuse.langchain import CallbackHandler
 from langfuse import observe
 from langgraph.prebuilt import ToolNode, tools_condition
-from tenacity import retry_unless_exception_type
 from langchain_tavily import TavilySearch
 from .constants import (
     PLANNER_NODE,
@@ -323,19 +322,6 @@ class TravelIntelligenceAgent:
             "full_trip_plan" : llm_response.content.strip(),
         }
 
-    # @observe(name="Router")
-    # def _router(self, state: AgentState):
-
-    #     if (
-    #             state.get("source")
-    #             and state.get("destination")
-    #             and state.get("travel_duration")
-    #             and state.get("travel_date")
-    #     ):
-    #         return QUERY_GENERATOR_NODE
-
-    #     return END
-
     def _build_graph(self) :
 
         graph_builder = StateGraph(AgentState)
@@ -384,14 +370,11 @@ class TravelIntelligenceAgent:
         graph_builder.add_edge(CHAT_NODE, END)
         graph_builder.add_edge(EMERGENCY_TRAVEL_ASSISTANT_NODE, QUERY_GENERATOR_NODE)
         graph_builder.add_edge(PLAN_TRIP_NODE, QUERY_GENERATOR_NODE)
-        graph_builder.add_edge(HOTEL_RESTAURANT_SEARCH_NODE, END)
         graph_builder.add_edge(UPDATE_TRIP_NODE, QUERY_GENERATOR_NODE)
         graph_builder.add_edge(TRAVEL_TIME_CALCULATION_NODE, QUERY_GENERATOR_NODE)
-        graph_builder.add_edge(HOTEL_BOOKING_NODE, END) # TODO: Implement user details collection for hotel booking
         graph_builder.add_edge(SEARCH_ALTERNATIVE_ROUTES_NODE, SEARCH_NODE)
         graph_builder.add_edge(LOCAL_ATTRACTIONS_NODE, SEARCH_NODE)
         graph_builder.add_edge(GET_PLACE_PICTURES_NODE, SEARCH_NODE)
-
         graph_builder.add_edge(QUERY_GENERATOR_NODE, SEARCH_NODE)
         graph_builder.add_edge(SEARCH_NODE, PLANNER_NODE)
         graph_builder.add_edge(PLANNER_NODE, END)
@@ -408,4 +391,16 @@ class TravelIntelligenceAgent:
 
         agent_memory = MemorySaver()
 
-        return graph_builder.compile(checkpointer=agent_memory)
+        graph = graph_builder.compile(checkpointer=agent_memory)
+
+        # graphs_dir = os.path.join(os.path.dirname(__file__), "..", "graphs")
+        # os.makedirs(graphs_dir, exist_ok=True)
+        # output_path = os.path.join(graphs_dir, "travel_agent_graph.png")
+        #
+        # try:
+        #     graph.get_graph().draw_mermaid_png(output_file_path=output_path)
+        #     logger.info("Graph visualization saved to %s", output_path)
+        # except Exception as exc:
+        #     logger.warning("Failed to save graph visualization: %s", exc)
+
+        return graph
