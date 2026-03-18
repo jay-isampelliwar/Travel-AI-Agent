@@ -1,6 +1,5 @@
-from datetime import datetime
 from typing import Dict, Literal
-from langchain_google_genai import ChatGoogleGenerativeAI
+import logging
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END, START
@@ -53,6 +52,9 @@ from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, Tr
 from .utils import get_current_date_time, format_search_results, has_all_required_trip_fields
 
 
+logger = logging.getLogger(__name__)
+
+
 class TravelIntelligenceAgent:
 
     def __init__(self):
@@ -65,17 +67,17 @@ class TravelIntelligenceAgent:
 
     @observe(name=INIT_NODE)
     def _init_node(self, _: AgentState) -> Dict:
+        logger.info("%s", INIT_NODE)
         return {
             "current_date_time" : get_current_date_time(),
         }
 
     @observe(name=INTENT_CLASSIFIER_NODE)
     def _intent_classifier(self, state: AgentState) -> INTENT_TYPES:
-
-        print(INTENT_CLASSIFIER_NODE)
+        logger.info("%s", INTENT_CLASSIFIER_NODE)
 
         if not has_all_required_trip_fields(state):
-            print(f"Intent: {CHAT_NODE}")
+            logger.info("intent=%s", CHAT_NODE)
             return CHAT_NODE
 
         messages = state["messages"]
@@ -85,13 +87,13 @@ class TravelIntelligenceAgent:
         intent = self.llm.invoke([system_prompt])
         # Normalize intent name to match classifier constants
         intent = intent.content.strip().upper()
-
-        print(f"Intent: {intent}")
+        logger.info("intent=%s", intent)
 
         return intent
 
     @observe(name=CHAT_NODE)
     def _chat_node(self, state: AgentState) -> Dict:
+        logger.info("%s", CHAT_NODE)
 
         current_date_time = state["current_date_time"]
         source = state.get("source") or ""
@@ -131,10 +133,72 @@ class TravelIntelligenceAgent:
 
         return result
 
+    @observe(name=EMERGENCY_TRAVEL_ASSISTANT_NODE)
+    def _emergency_travel_assistant_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", EMERGENCY_TRAVEL_ASSISTANT_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=PLAN_TRIP_NODE)
+    def _plan_trip_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", PLAN_TRIP_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=HOTEL_RESTAURANT_SEARCH_NODE)
+    def _hotel_restaurant_search_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", HOTEL_RESTAURANT_SEARCH_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=UPDATE_TRIP_NODE)
+    def _update_trip_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", UPDATE_TRIP_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=TRAVEL_TIME_CALCULATION_NODE)
+    def _travel_time_calculation_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", TRAVEL_TIME_CALCULATION_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=HOTEL_BOOKING_NODE)
+    def _hotel_booking_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", HOTEL_BOOKING_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=SEARCH_ALTERNATIVE_ROUTES_NODE)
+    def _search_alternative_routes_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", SEARCH_ALTERNATIVE_ROUTES_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=LOCAL_ATTRACTIONS_NODE)
+    def _local_attractions_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", LOCAL_ATTRACTIONS_NODE)
+        return {
+            **state
+        }
+
+    @observe(name=GET_PLACE_PICTURES_NODE)
+    def _get_place_pictures_intent(self, state: AgentState) -> Dict:
+        logger.info("%s", GET_PLACE_PICTURES_NODE)
+        return {
+            **state
+        }
+
     @observe(name=QUERY_GENERATOR_NODE)
     def _query_generator(self, state: AgentState) -> Dict:
-
-        print(f"NODE => {QUERY_GENERATOR_NODE}")
+        logger.info("%s", QUERY_GENERATOR_NODE)
 
         user_query = state["messages"][-1].content
         source = state["source"]
@@ -152,9 +216,7 @@ class TravelIntelligenceAgent:
         )
 
         llm_response : QueryGeneratorModel = self.llm.with_structured_output(QueryGeneratorModel, strict=True).invoke([system_prompt] + [user_query])
-
-        print("Query node completed execution")
-        print(llm_response.to_dict())
+        logger.info("%s completed", QUERY_GENERATOR_NODE)
 
         return {
             "web_search_queries": llm_response.queries,
@@ -162,6 +224,7 @@ class TravelIntelligenceAgent:
 
     @observe(name=SEARCH_NODE)
     def _searcher(self, state: AgentState) -> Dict:
+        logger.info("%s", SEARCH_NODE)
 
         web_search_queries = state["web_search_queries"]
 
@@ -200,8 +263,7 @@ class TravelIntelligenceAgent:
             )
         )
 
-
-        print("Search node completed execution")
+        logger.info("%s completed", SEARCH_NODE)
 
         return {
             "travel_timings": travel_timings.to_dict(),
@@ -211,6 +273,7 @@ class TravelIntelligenceAgent:
 
     @observe(name=PLANNER_NODE)
     def _planner(self, state: AgentState) -> Dict:
+        logger.info("%s", PLANNER_NODE)
 
         planner_system_prompt = TRIP_PLANNER_PROMPT.format(
         source         = state["source"],
@@ -223,8 +286,7 @@ class TravelIntelligenceAgent:
         )
 
         llm_response = self.llm.invoke([planner_system_prompt])
-
-        print("Planner node completed execution")
+        logger.info("%s completed", PLANNER_NODE)
 
         return {
             "messages": [AIMessage(content=llm_response.content.strip())],
