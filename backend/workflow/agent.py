@@ -35,7 +35,6 @@ from .prompts import (
     TIMING_EXTRACTOR_PROMPTS,
     THINGS_TODO_EXTRACTOR_PROMPTS,
     ROUTE_EXTRACTOR_PROMPTS,
-    TIPS_EXTRACTOR_PROMPT,
     TRIP_PLANNER_PROMPT,
     INTENT_CLASSIFIER_PROMPTS,
 
@@ -49,9 +48,6 @@ class TravelIntelligenceAgent:
     def __init__(self):
         self.llm = ChatOpenAI(
             model="gpt-4o-mini"
-            # model="gpt-4o",
-            # api_key="",
-            # base_url="http://127.0.0.1:1234/v1",
         )
         self.graph = self._build_graph()
         self.search_service = TavilySearch(max_results=5)
