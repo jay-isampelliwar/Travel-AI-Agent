@@ -53,5 +53,9 @@ No JSON, no explanation, no punctuation.
 Return the intent name only. Example:
 
 PLAN_TRIP
-"""
 
+---
+## USER QUERY
+
+{query}
+"""
