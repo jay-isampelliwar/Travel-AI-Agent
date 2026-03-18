@@ -53,6 +53,14 @@ from .utils import get_current_date_time, format_search_results, has_all_require
 
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    _handler.setFormatter(_formatter)
+    logger.addHandler(_handler)
 
 
 class TravelIntelligenceAgent:
