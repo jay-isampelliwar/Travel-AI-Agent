@@ -1,3 +1,5 @@
+from langchain.tools import tool
+
 class ToolManager:
     def __init__(self):
         print("Initializing Tool Manager")
@@ -7,14 +9,17 @@ class ToolManager:
         return [
             self._search_flights,
             self._search_hotels,
+            self._search_restaurants,
             self._get_weather,
             self._generate_itinerary,
             self._estimate_trip_cost,
             self._get_local_attractions,
             self._get_travel_requirements,
-            self._packing_suggestions
+            self._packing_suggestions,
+            self._get_place_pictures,
         ]
 
+    @tool()
     def _search_flights(self, source_city: str, destination_city: str, departure_date: str):
         """
         Search for available flights between two cities for a specific departure date.
@@ -29,8 +34,9 @@ class ToolManager:
         departure_date: The date of travel in YYYY-MM-DD format.
         """
         pass
-
-    def _search_hotels(self, city: str, checkin_date: str, checkout_date: str):
+    
+    @tool()
+    def _search_hotels(self, city: str):
         """
         Find available hotels in a specified city for given check-in and check-out dates.
 
@@ -44,6 +50,36 @@ class ToolManager:
         """
         pass
 
+
+    @tool()
+    def _search_restaurants(self, city: str):
+        """
+        Find recommended restaurants in a specified city.
+
+        This tool should return restaurant options including name, type of cuisine,
+        price range, ratings, and distance from key locations or tourist attractions.
+
+        Parameters:
+        city: The destination city where the user is staying.
+        """
+        pass
+
+    @tool()
+    def _get_place_pictures(self, place_name: str, city: str | None = None):
+        """
+        Retrieve representative pictures for a given place or landmark.
+
+        This tool should return one or more image URLs (or image metadata)
+        that visually represent the specified place, suitable for use in a
+        travel assistant UI.
+
+        Parameters:
+        place_name: Name of the place, landmark, attraction, or neighborhood.
+        city: Optional city or region to disambiguate the place if needed.
+        """
+        pass
+
+    @tool()    
     def _get_weather(self, city: str, date: str):
         """
         Retrieve weather information for a given city on a specific date.
