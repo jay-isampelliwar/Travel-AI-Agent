@@ -98,7 +98,22 @@ class TravelIntelligenceAgent:
         messages = state["messages"]
         messages_for_prompt = messages[-10:] if len(messages) > 10 else messages
         user_context = "\n".join([message.content for message in messages_for_prompt])
-        system_prompt = SystemMessage(content=INTENT_CLASSIFIER_PROMPTS.format(context=user_context))
+
+        source = state.get("source") or "Pune"
+        destination = state.get("destination") or ""
+        travel_date = state.get("travel_date") or ""
+        duration = str(state.get("travel_duration") or "")
+        budget = state.get("budget") or ""
+
+        system_prompt = SystemMessage(content=INTENT_CLASSIFIER_PROMPTS.format(
+            context=user_context,
+            source = source,
+            destination = destination,
+            travel_date = travel_date,
+            travel_duration = duration,
+            budget = budget,
+        ))
+
         intent = self.llm.invoke([system_prompt])
         # Normalize intent name to match classifier constants
         intent = intent.content.strip().upper()
@@ -111,7 +126,7 @@ class TravelIntelligenceAgent:
         logger.info("%s", CHAT_NODE)
 
         current_date_time = state["current_date_time"]
-        source = state.get("source") or ""
+        source = state.get("source") or "Pune"
         destination = state.get("destination") or ""
         travel_dates = state.get("travel_date") or ""
         duration = str(state.get("travel_duration") or "")
@@ -151,9 +166,49 @@ class TravelIntelligenceAgent:
     @observe(name=EMERGENCY_TRAVEL_ASSISTANT_NODE)
     def _emergency_travel_assistant_intent(self, state: AgentState) -> Dict:
         logger.info("%s", EMERGENCY_TRAVEL_ASSISTANT_NODE)
-        return {
-            **state
+
+        # Use only the last 5 messages as context to infer current location
+        messages = state["messages"]
+        recent_messages = messages[-5:] if len(messages) > 5 else messages
+
+        # Build a simple text transcript for the prompt
+        formatted_history = []
+        for msg in recent_messages:
+            content = getattr(msg, "content", "")
+            formatted_history.append(content)
+
+        recent_messages_text = "\n".join(formatted_history)
+
+        system_instruction = SystemMessage(
+            content=EMERGENCY_TRAVEL_ASSISTANT_PROMPT.format(
+                recent_messages=recent_messages_text
+            )
+        )
+
+        response: ChatMessage = self.llm.with_structured_output(ChatMessage, strict=True).invoke(
+            [system_instruction] + recent_messages
+        )
+
+        # Update messages with the AI emergency response
+        new_messages = state["messages"] + [AIMessage(content=response.ai_message)]
+
+        updated_state: Dict = {
+            "messages": new_messages,
         }
+
+        # If the model infers/updates trip fields, merge them in
+        if response.source:
+            updated_state["source"] = response.source
+        if response.destination:
+            updated_state["destination"] = response.destination
+        if response.travel_duration:
+            updated_state["travel_duration"] = response.travel_duration
+        if response.travel_date:
+            updated_state["travel_date"] = response.travel_date
+        if response.budget:
+            updated_state["budget"] = response.budget
+
+        return updated_state
 
     @observe(name=PLAN_TRIP_NODE)
     def _plan_trip_intent(self, state: AgentState) -> Dict:
@@ -180,6 +235,7 @@ class TravelIntelligenceAgent:
 
         logger.info("%s", results)
         return {
+            "messages": [AIMessage(content=results.ai_message)],
             "ui_type": "hotel_search_ui",
             "hotel_search_results": results.to_dict(),
         }
@@ -231,10 +287,11 @@ class TravelIntelligenceAgent:
         logger.info("%s", QUERY_GENERATOR_NODE)
 
         user_query = state["messages"][-1].content
-        source = state["source"]
-        destination = state["destination"]
-        travel_duration = state["travel_duration"]
-        travel_date = state["travel_date"]
+        source = state.get("source") or "Pune"
+        destination = state.get("destination") or ""
+        travel_date = state.get("travel_date") or ""
+        travel_duration = str(state.get("travel_duration") or "")
+        budget = state.get("budget") or ""
 
         system_prompt = SystemMessage(
             content=SEARCH_QUERY_GENERATOR_PROMPT.format(
@@ -242,6 +299,7 @@ class TravelIntelligenceAgent:
                 destination=destination,
                 duration_days=travel_duration,
                 travel_date=travel_date,
+                budget=budget,
             )
         )
 
@@ -315,12 +373,15 @@ class TravelIntelligenceAgent:
         things_to_do   = state["things_to_do"],
         )
 
-        llm_response = self.llm.invoke([planner_system_prompt])
+        planner_response: Planner = self.llm.with_structured_output(Planner, strict=True).invoke(
+            [planner_system_prompt]
+        )
         logger.info("%s completed", PLANNER_NODE)
 
         return {
-            "messages": [AIMessage(content=llm_response.content.strip())],
-            "full_trip_plan" : llm_response.content.strip(),
+            "messages": [AIMessage(content=planner_response.summary.strip())],
+            "full_trip_plan": planner_response.summary.strip(),
+            "follow_up_questions": planner_response.follow_up_questions,
         }
 
     def _build_graph(self) :
