@@ -32,7 +32,7 @@ async def health_check():
 
 @app.post("/agent", response_model=AgentResponse)
 async def run_agent(payload: AgentRequest) -> AgentResponse:
-    result = agent.graph.invoke(
+    result = await agent.graph.ainvoke(
         {
             "messages": [
                 HumanMessage(
@@ -59,6 +59,8 @@ async def run_agent(payload: AgentRequest) -> AgentResponse:
         data = {}
 
     # Extract follow-up questions from planner (if available)
+    # print(result)
+
     follow_up_questions = result.get("follow_up_questions") or []
     if not isinstance(follow_up_questions, list):
         follow_up_questions = []

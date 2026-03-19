@@ -3,11 +3,14 @@ from typing import Any, Dict
 
 import requests
 from langchain.tools import tool
-from langchain_tavily import TavilySearch
+from .services import LLM, TavilySearchService
+
+
 class ToolManager:
-    def __init__(self , tavily_search: TavilySearch):
+    def __init__(self):
         print("Initializing Tool Manager")
-        self.tavily_search = tavily_search
+        self.tavily_search = TavilySearchService()
+        self.llm = LLM()
 
     def get_tools(self):
         """Public method that returns all available tools."""
