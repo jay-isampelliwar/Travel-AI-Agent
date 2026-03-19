@@ -1,14 +1,15 @@
-"use client";
+ "use client";
 
-import type { FormEvent, KeyboardEvent } from "react";
-import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import {
-  type HotelResultItem,
-  HotelSearchResults,
-  HotelSearchResultsSkeleton,
-} from "../components/HotelSearchResults";
+ import type { FormEvent, KeyboardEvent } from "react";
+ import { useEffect, useRef, useState } from "react";
+ import ReactMarkdown from "react-markdown";
+ import remarkGfm from "remark-gfm";
+ import {
+   type HotelResultItem,
+   HotelSearchResults,
+   HotelSearchResultsSkeleton,
+ } from "../components/HotelSearchResults";
+ import { FollowUpQuestions } from "../components/FollowUpQuestions";
 
 type Message = {
   id: number;
@@ -36,6 +37,7 @@ export default function Home() {
     null,
   );
   const [isHotelLoading, setIsHotelLoading] = useState(false);
+  const [followUps, setFollowUps] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -113,6 +115,22 @@ export default function Home() {
         setIsHotelLoading(false);
         setHotelResults(null);
       }
+
+      let followUps: string[] = [];
+      if (Array.isArray(json.follow_up_questions)) {
+        followUps = json.follow_up_questions;
+      } else if (typeof json.follow_up_questions === "string") {
+        try {
+          const parsed = JSON.parse(json.follow_up_questions);
+          if (Array.isArray(parsed)) {
+            followUps = parsed;
+          }
+        } catch {
+          // ignore parse errors and fall back to empty array
+        }
+      }
+
+      setFollowUps(followUps);
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -321,29 +339,32 @@ export default function Home() {
           )}
         </section>
 
-        {/* Input bar */}
-        <form
-          onSubmit={handleSubmit}
-          className="mt-2 flex items-end gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5"
-        >
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about destinations, itineraries, costs…"
-            className="flex-1 resize-none overflow-hidden rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-lg text-neutral-900 placeholder:text-stone-300 outline-none transition-colors focus:border-stone-400"
-          />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            aria-label="Send message"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-all hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+        {/* Follow-up questions + Input bar */}
+        <div className="mt-2">
+          <FollowUpQuestions questions={followUps} onSelect={(q) => void sendMessage(q)} />
+          <form
+            onSubmit={handleSubmit}
+            className="mt-2 flex items-end gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5"
           >
-            <PlaneIcon />
-          </button>
-        </form>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about destinations, itineraries, costs…"
+              className="flex-1 resize-none overflow-hidden rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-lg text-neutral-900 placeholder:text-stone-300 outline-none transition-colors focus:border-stone-400"
+            />
+            <button
+              type="submit"
+              disabled={isLoading || !input.trim()}
+              aria-label="Send message"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-all hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <PlaneIcon />
+            </button>
+          </form>
+        </div>
       </main>
     </div>
   );
