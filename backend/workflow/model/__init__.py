@@ -5,6 +5,7 @@ from .travel_route import TransportOption, TravelRoute
 from .travel_timing import TravelTiming
 from .travel_tips import TravelTip, TravelTips
 from .hotel_restaurant_search import HotelRestaurantSearch, ResultItem
+from .planner import Planner
 
 __all__ = [
     "Activity",
@@ -18,5 +19,6 @@ __all__ = [
     "TravelTiming",
     "HotelRestaurantSearch",
     "ResultItem",
+    "Planner",
 ]
 

@@ -21,6 +21,9 @@ class ResultItem(BaseModel):
 
 
 class HotelRestaurantSearch(BaseModel):
+    ai_message: str = Field(
+        description="Message describing how the hotel restaurants were searched"
+    )
     list_of_results: List[ResultItem] = Field(
         description="List of recommended hotels or restaurants that match the search"
     )
