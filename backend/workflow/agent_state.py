@@ -27,5 +27,7 @@ class AgentState(MessagesState):
     full_trip_plan: Optional[str]
     web_search_queries: Optional[list[str]]
 
+    follow_up_questions: Optional[list[str]]
+
     ui_type: Optional[str]
     hotel_search_results: Optional[dict]
