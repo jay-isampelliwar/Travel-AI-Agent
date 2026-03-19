@@ -58,13 +58,16 @@ async def run_agent(payload: AgentRequest) -> AgentResponse:
     if not isinstance(data, dict):
         data = {}
 
-    # For now, return the original message with dummy values
-    # for ui_type, data, and follow_up_questions.
+    # Extract follow-up questions from planner (if available)
+    follow_up_questions = result.get("follow_up_questions") or []
+    if not isinstance(follow_up_questions, list):
+        follow_up_questions = []
+
     return AgentResponse(
         message=answer,
         ui_type=ui_type,
         data=data,
-        follow_up_questions=["", ""],
+        follow_up_questions=follow_up_questions,
     )
 
 

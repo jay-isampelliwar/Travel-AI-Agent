@@ -47,10 +47,11 @@ from .prompts import (
     ROUTE_EXTRACTOR_PROMPTS,
     TRIP_PLANNER_PROMPT,
     INTENT_CLASSIFIER_PROMPTS,
-    HOTEL_RESTAURANT_PROMPT
+    HOTEL_RESTAURANT_PROMPT,
+    EMERGENCY_TRAVEL_ASSISTANT_PROMPT,
 )
-from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, TravelTiming, HotelRestaurantSearch
-from .utils import get_current_date_time, format_search_results, has_all_required_trip_fields
+from .model import ChatMessage, QueryGeneratorModel, ThingsToDo, TravelRoute, TravelTiming, HotelRestaurantSearch, Planner
+from .utils import get_current_date_time, format_search_results, format_prompt_with_state
 from .tool_manager import ToolManager
 
 # Im Planning a trip to Tokyo, Japan From Mumbai, and I have budget of 150K
@@ -90,9 +91,9 @@ class TravelIntelligenceAgent:
     def _intent_classifier(self, state: AgentState) -> INTENT_TYPES:
         logger.info("%s", INTENT_CLASSIFIER_NODE)
 
-        if not has_all_required_trip_fields(state):
-            logger.info("intent=%s", CHAT_INTENT)
-            return CHAT_INTENT
+        # if not has_all_required_trip_fields(state):
+        #     logger.info("intent=%s", CHAT_INTENT)
+        #     return CHAT_INTENT
 
         messages = state["messages"]
         messages_for_prompt = messages[-10:] if len(messages) > 10 else messages
