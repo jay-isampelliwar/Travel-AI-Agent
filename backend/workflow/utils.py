@@ -1,5 +1,7 @@
 from datetime import datetime
-from typing import Mapping, Any
+import os
+import logging
+from typing import Mapping, Any, Optional
 
 from .agent_state import AgentState
 
@@ -48,3 +50,30 @@ def has_all_required_trip_fields(state: AgentState | Mapping[str, Any]) -> bool:
             return False
 
     return True
+
+
+def bottle_mermaid_png(
+    compiled_graph: Any,
+    *,
+    logger: Optional[logging.Logger] = None,
+    filename: str = "travel_agent_graph.png",
+    output_dirname: str = "graphs",
+) -> Optional[str]:
+    """
+    Best-effort: render a LangGraph Mermaid diagram to a PNG file.
+
+    Returns the output path on success, otherwise None.
+    """
+    log = logger or logging.getLogger(__name__)
+
+    graphs_dir = os.path.join(os.path.dirname(__file__), "..", output_dirname)
+    os.makedirs(graphs_dir, exist_ok=True)
+    output_path = os.path.join(graphs_dir, filename)
+
+    try:
+        compiled_graph.get_graph().draw_mermaid_png(output_file_path=output_path)
+        log.info("Graph visualization saved to %s", output_path)
+        return output_path
+    except Exception as exc:
+        log.warning("Failed to save graph visualization: %s", exc)
+        return None
