@@ -5,10 +5,12 @@ export async function POST(request: Request) {
     return new Response("Invalid message", { status: 400 });
   }
 
-  // Previously using ngrok URL:
-  // "https://sylvie-cytostomal-zeke.ngrok-free.dev/agent"
-  const backendUrl =
-    process.env.BACKEND_URL ?? "http://127.0.0.1:8000/agent";
+  const prod = "https://sylvie-cytostomal-zeke.ngrok-free.dev/agent";
+  const local = "http://127.0.0.1:8000/agent";
+
+  const is_local = false;
+
+  const backendUrl = is_local ? local : prod;
 
   const backendResponse = await fetch(backendUrl, {
     method: "POST",
