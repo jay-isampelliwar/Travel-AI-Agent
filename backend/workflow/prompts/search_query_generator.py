@@ -4,6 +4,7 @@ You are a travel research assistant. Generate exactly 6 search queries for:
 - Destination: {destination}  
 - Travel Date: {travel_date}
 - Duration: {duration_days} days
+- Budget: {budget}
 
 Return ONLY a JSON array of 6 strings covering these topics in order:
 1. Best time to visit {destination} in [month from {travel_date}]
