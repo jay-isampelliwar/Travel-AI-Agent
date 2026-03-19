@@ -1,15 +1,15 @@
- "use client";
+"use client";
 
- import type { FormEvent, KeyboardEvent } from "react";
- import { useEffect, useRef, useState } from "react";
- import ReactMarkdown from "react-markdown";
- import remarkGfm from "remark-gfm";
- import {
-   type HotelResultItem,
-   HotelSearchResults,
-   HotelSearchResultsSkeleton,
- } from "../components/HotelSearchResults";
- import { FollowUpQuestions } from "../components/FollowUpQuestions";
+import type { FormEvent, KeyboardEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  type HotelResultItem,
+  HotelSearchResults,
+  HotelSearchResultsSkeleton,
+} from "../components/HotelSearchResults";
+import { FollowUpQuestions } from "../components/FollowUpQuestions";
 
 type Message = {
   id: number;
@@ -163,6 +163,7 @@ export default function Home() {
   }
 
   const QUICK_PROMPTS = [
+    "Hey",
     "Plan a 10-day trip to Japan in April",
     "Budget weekend getaway in Europe",
     "Best beaches for snorkeling in SE Asia",
@@ -209,7 +210,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen justify-center bg-stone-100 px-4 py-4 overflow-hidden">
-      <main className="flex w-full max-w-6xl flex-1 flex-col min-h-0">
+      <main className="flex w-full max-w-[90rem] flex-1 flex-col min-h-0">
         {/* Header */}
         <header className="mb-5 flex items-center justify-between border-b border-stone-200 pb-5">
           <div className="flex items-center gap-3">
@@ -273,14 +274,14 @@ export default function Home() {
                     }`}
                   >
                     {/* Avatar — assistant only */}
-                      {msg.role === "assistant" && (
+                    {msg.role === "assistant" && (
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-stone-200 bg-stone-50 text-stone-400">
                         <GlobeIcon size={14} />
                       </div>
                     )}
 
                     <div
-                      className={`max-w-[72%] rounded-2xl px-4 py-3 text-lg leading-relaxed ${
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-lg leading-relaxed ${
                         msg.role === "user"
                           ? "rounded-br-sm bg-neutral-900 text-white"
                           : "rounded-bl-sm border border-stone-200 bg-stone-50 text-neutral-900"
@@ -296,13 +297,15 @@ export default function Home() {
                         {msg.role === "user" ? "You" : "Assistant"}
                       </p>
                       {msg.role === "assistant" ? (
-                        <div className="text-[15px] leading-relaxed">
+                        <div className="text-[22px] leading-relaxed">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <p className="whitespace-pre-wrap text-[22px]">
+                          {msg.content}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -341,7 +344,10 @@ export default function Home() {
 
         {/* Follow-up questions + Input bar */}
         <div className="mt-2">
-          <FollowUpQuestions questions={followUps} onSelect={(q) => void sendMessage(q)} />
+          <FollowUpQuestions
+            questions={followUps}
+            onSelect={(q) => void sendMessage(q)}
+          />
           <form
             onSubmit={handleSubmit}
             className="mt-2 flex items-end gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3.5"
