@@ -22,7 +22,7 @@ def bottle_mermaid_png(
     """
     log = logger or logging.getLogger(__name__)
 
-    graphs_dir = os.path.join(os.path.dirname(__file__), "..", output_dirname)
+    graphs_dir = os.path.join(os.path.dirname(__file__), "../..", output_dirname)
     os.makedirs(graphs_dir, exist_ok=True)
     output_path = os.path.join(graphs_dir, filename)
 

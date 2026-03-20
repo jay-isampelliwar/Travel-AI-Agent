@@ -12,13 +12,17 @@ from langchain_core.caches import InMemoryCache
 from langchain_redis import RedisCache
 from .services.caching import get_redis_client
 
-from .constants import (
+from .constant import (
     CHAT_NODE,
     INIT_NODE,
     TOOLS_NODE,
     INPUT_GUARDRAIL_NODE,
     FOLLOW_UP_QUESTION_NODE,
     OUTPUT_GUARDRAILS_NODE,
+    CHAT_NODE_FALLBACK_MSG,
+    INPUT_GUARDRAIL_NODE_FALLBACK_MSG,
+    OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG,
+    FOLLOW_UP_QUESTION_NODE_FALLBACK_MSG,
 )
 from .agent_state import AgentState
 from .prompts import (
@@ -29,9 +33,10 @@ from .prompts import (
 )
 
 from .model import FollowUpSuggestions
-from .utils import get_current_date_time, bottle_mermaid_png
+from workflow.utils.utils import get_current_date_time, bottle_mermaid_png
 from .tools import ALL_TOOLS
 from .services import LLM, TavilySearchService
+from .utils.safe_llm_decorator import safe_llm_call
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -80,6 +85,7 @@ class TravelIntelligenceAgent:
         }
 
     @observe(name=INPUT_GUARDRAIL_NODE)
+    @safe_llm_call(fallback_msg=INPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _input_guardrail_node(self, state: AgentState) -> Dict:
         logger.info("%s", INPUT_GUARDRAIL_NODE)
 
@@ -102,6 +108,7 @@ class TravelIntelligenceAgent:
         return state.get("input_guardrail_decision") or CHAT_NODE
 
     @observe(name=CHAT_NODE)
+    @safe_llm_call(fallback_msg=CHAT_NODE_FALLBACK_MSG)
     def _chat_node(self, state: AgentState) -> Dict:
         logger.info("%s", CHAT_NODE)
 
@@ -121,6 +128,7 @@ class TravelIntelligenceAgent:
         }
 
     @observe(name=OUTPUT_GUARDRAILS_NODE)
+    @safe_llm_call(fallback_msg=OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _output_guardrail_node(self, state: AgentState) -> Dict:
         logger.info("%s", OUTPUT_GUARDRAILS_NODE)
 
@@ -143,6 +151,7 @@ class TravelIntelligenceAgent:
         }
 
     @observe(name=FOLLOW_UP_QUESTION_NODE)
+    @safe_llm_call(fallback_msg=FOLLOW_UP_QUESTION_NODE_FALLBACK_MSG)
     def _follow_up_question_node(self, state: AgentState) -> Dict:
         
         last_message = state["messages"][-1].content
