@@ -1,6 +1,7 @@
 
 TOOLS_NODE = "tools"
 INIT_NODE = "init"
-GUARDRAILS_NODE = "guardrails"
+INPUT_GUARDRAIL_NODE = "input_guardrail"
 FOLLOW_UP_QUESTION_NODE = "follow_up_question"
 CHAT_NODE = "chat"
+OUTPUT_GUARDRAILS_NODE = "output_guardrail"

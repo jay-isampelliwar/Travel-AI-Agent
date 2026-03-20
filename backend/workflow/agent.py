@@ -10,14 +10,16 @@ from .constants import (
     CHAT_NODE,
     INIT_NODE,
     TOOLS_NODE,
-    GUARDRAILS_NODE,
+    INPUT_GUARDRAIL_NODE,
     FOLLOW_UP_QUESTION_NODE,
+    OUTPUT_GUARDRAILS_NODE,
 )
 from .agent_state import AgentState
 from .prompts import (
     SYSTEM_INSTRUCTION,
     FOLLOW_UP_SUGGESTIONS_PROMPT,
-    GUARDRAILS_PROMPT,
+    INPUT_GUARDRAILS_PROMPT,
+    OUTPUT_GUARDRAILS_PROMPT,
 )
 
 from .model import FollowUpSuggestions
@@ -54,12 +56,12 @@ class TravelIntelligenceAgent:
             "cycle_count": (state.get("cycle_count") or 0) + 1
         }
 
-    @observe(name=GUARDRAILS_NODE)
-    def _guardrail_node(self, state: AgentState) -> Dict:
-        logger.info("%s", GUARDRAILS_NODE)
+    @observe(name=INPUT_GUARDRAIL_NODE)
+    def _input_guardrail_node(self, state: AgentState) -> Dict:
+        logger.info("%s", INPUT_GUARDRAIL_NODE)
 
         user_message = state["messages"][-1].content
-        prompt = GUARDRAILS_PROMPT.format(user_message=user_message)
+        prompt = INPUT_GUARDRAILS_PROMPT.format(user_message=user_message)
         response = self.llm.invoke(prompt)
 
         classification = response.content.strip().upper()
@@ -70,11 +72,11 @@ class TravelIntelligenceAgent:
 
         logger.info("Guardrail classification: %s", classification)
 
-        return {"guardrail_decision": classification}
+        return {"input_guardrail_decision": classification}
 
-    @observe(name="guardrail_router")
-    def _guardrail_router(self, state: AgentState) -> str:
-        return state.get("guardrail_decision") or CHAT_NODE
+    @observe(name="input_guardrail_router")
+    def _input_guardrail_router(self, state: AgentState) -> str:
+        return state.get("input_guardrail_decision") or CHAT_NODE
 
     @observe(name=CHAT_NODE)
     def _chat_node(self, state: AgentState) -> Dict:
@@ -93,6 +95,28 @@ class TravelIntelligenceAgent:
 
         return {
             "messages": [response]
+        }
+
+    @observe(name=OUTPUT_GUARDRAILS_NODE)
+    def _output_guardrail_node(self, state: AgentState) -> Dict:
+        logger.info("%s", OUTPUT_GUARDRAILS_NODE)
+
+        user_message = ""
+        for message in reversed(state["messages"]):
+            if getattr(message, "type", "") == "human":
+                user_message = message.content
+                break
+
+        assistant_draft = state["messages"][-1].content
+        prompt = OUTPUT_GUARDRAILS_PROMPT.format(
+            user_message=user_message,
+            assistant_draft=assistant_draft,
+        )
+        response = self.llm.invoke(prompt)
+
+        return {
+            "messages": [response],
+            "output_guardrail_applied": True,
         }
 
     @observe(name=FOLLOW_UP_QUESTION_NODE)
@@ -121,16 +145,17 @@ class TravelIntelligenceAgent:
 
         graph_builder.add_node(TOOLS_NODE, ToolNode(ALL_TOOLS))
         graph_builder.add_node(INIT_NODE, self._init_node)
-        graph_builder.add_node(GUARDRAILS_NODE, self._guardrail_node)
+        graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
+        graph_builder.add_node(OUTPUT_GUARDRAILS_NODE, self._output_guardrail_node)
         graph_builder.add_node(FOLLOW_UP_QUESTION_NODE, self._follow_up_question_node)
 
 
         graph_builder.add_edge(START, INIT_NODE)
-        graph_builder.add_edge(INIT_NODE, GUARDRAILS_NODE)
+        graph_builder.add_edge(INIT_NODE, INPUT_GUARDRAIL_NODE)
         graph_builder.add_conditional_edges(
-            GUARDRAILS_NODE,
-            self._guardrail_router,
+            INPUT_GUARDRAIL_NODE,
+            self._input_guardrail_router,
             {
                 CHAT_NODE: CHAT_NODE,
                 END: END,
@@ -142,11 +167,12 @@ class TravelIntelligenceAgent:
             tools_condition,
             {
                 TOOLS_NODE: TOOLS_NODE,
-                END: FOLLOW_UP_QUESTION_NODE
+                END: OUTPUT_GUARDRAILS_NODE
             }
         )
 
         graph_builder.add_edge(TOOLS_NODE, CHAT_NODE)
+        graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, FOLLOW_UP_QUESTION_NODE)
         graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, END)
 
         agent_memory = MemorySaver()
