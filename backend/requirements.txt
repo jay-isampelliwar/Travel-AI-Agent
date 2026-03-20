@@ -9,3 +9,6 @@ fastapi[standard]
 langchain-tavily
 langfuse
 requests
+redis
+langgraph-checkpoint-redis
+langchain-redis
