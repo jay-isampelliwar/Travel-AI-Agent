@@ -3,9 +3,15 @@ import logging
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.redis import RedisSaver
 from langfuse.langchain import CallbackHandler
 from langfuse import observe
 from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_core.globals import set_llm_cache
+from langchain_core.caches import InMemoryCache
+from langchain_redis import RedisCache
+from .services.caching import get_redis_client
+
 from .constants import (
     CHAT_NODE,
     INIT_NODE,
@@ -37,6 +43,23 @@ if not logger.handlers:
     _handler.setFormatter(_formatter)
     logger.addHandler(_handler)
 
+
+def _configure_llm_cache() -> None:
+    """Use Redis-backed LLM cache when RedisJSON exists, else fallback."""
+    try:
+        redis_client = get_redis_client()
+        # langchain_redis uses RedisJSON commands (JSON.GET / JSON.SET).
+        redis_client.execute_command("JSON.GET", "__cache_healthcheck__", ".")
+        set_llm_cache(RedisCache(redis_client=redis_client, ttl=600))
+    except Exception as exc:
+        logger.warning(
+            "Redis LLM cache unavailable (RedisJSON missing or Redis down), using InMemoryCache: %s",
+            exc,
+        )
+        set_llm_cache(InMemoryCache())
+
+
+_configure_llm_cache()
 
 class TravelIntelligenceAgent:
 
@@ -145,23 +168,24 @@ class TravelIntelligenceAgent:
 
         graph_builder.add_node(TOOLS_NODE, ToolNode(ALL_TOOLS))
         graph_builder.add_node(INIT_NODE, self._init_node)
-        graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
+        # graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
         graph_builder.add_node(OUTPUT_GUARDRAILS_NODE, self._output_guardrail_node)
         graph_builder.add_node(FOLLOW_UP_QUESTION_NODE, self._follow_up_question_node)
 
 
         graph_builder.add_edge(START, INIT_NODE)
-        graph_builder.add_edge(INIT_NODE, INPUT_GUARDRAIL_NODE)
-        graph_builder.add_conditional_edges(
-            INPUT_GUARDRAIL_NODE,
-            self._input_guardrail_router,
-            {
-                CHAT_NODE: CHAT_NODE,
-                END: END,
-            }
-        )
+        # graph_builder.add_edge(INIT_NODE, INPUT_GUARDRAIL_NODE)
+        # graph_builder.add_conditional_edges(
+        #     INPUT_GUARDRAIL_NODE,
+        #     self._input_guardrail_router,
+        #     {
+        #         CHAT_NODE: CHAT_NODE,
+        #         END: END,
+        #     }
+        # )
 
+        graph_builder.add_edge(INIT_NODE, CHAT_NODE)
         graph_builder.add_conditional_edges(
             CHAT_NODE,
             tools_condition,
@@ -175,7 +199,12 @@ class TravelIntelligenceAgent:
         graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, FOLLOW_UP_QUESTION_NODE)
         graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, END)
 
-        agent_memory = MemorySaver()
+        try:
+            redis_client = get_redis_client()
+            agent_memory = RedisSaver(redis_client)
+        except Exception as exc:
+            logger.warning("Redis checkpointer unavailable, falling back to MemorySaver: %s", exc)
+            agent_memory = MemorySaver()
 
         graph = graph_builder.compile(checkpointer=agent_memory)
 
