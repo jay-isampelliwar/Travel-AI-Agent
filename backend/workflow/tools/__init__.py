@@ -14,12 +14,12 @@ ALL_TOOLS = [
     search_hotels,
     search_restaurants,
     get_weather,
-    # generate_itinerary,
-    # estimate_trip_cost,
-    # get_local_attractions,
-    # get_travel_requirements,
-    # packing_suggestions,
-    # get_place_pictures,
+    generate_itinerary,
+    estimate_trip_cost,
+    get_local_attractions,
+    get_travel_requirements,
+    packing_suggestions,
+    get_place_pictures,
 ]
 
 __all__ = [
