@@ -5,9 +5,10 @@ from .timing_extractor import TIMING_EXTRACTOR_PROMPTS
 from .route_extractor import ROUTE_EXTRACTOR_PROMPTS
 from .things_to_do_extractor import THINGS_TODO_EXTRACTOR_PROMPTS
 from .tips_extractor import TIPS_EXTRACTOR_PROMPT
-from .trip_planner import TRIP_PLANNER_PROMPT
+from .follow_up_question import FOLLOW_UP_QUESTIONS_PROMPT
 from .hotel_search_prompt import HOTEL_RESTAURANT_PROMPT
 from .emergency_travel_assistant import EMERGENCY_TRAVEL_ASSISTANT_PROMPT
+from .guardrails import GUARDRAILS_PROMPT
 
 __all__ = [
     "SYSTEM_INSTRUCTION",
@@ -17,8 +18,9 @@ __all__ = [
     "ROUTE_EXTRACTOR_PROMPTS",
     "THINGS_TODO_EXTRACTOR_PROMPTS",
     "TIPS_EXTRACTOR_PROMPT",
-    "TRIP_PLANNER_PROMPT",
+    "FOLLOW_UP_QUESTIONS_PROMPT",
     "HOTEL_RESTAURANT_PROMPT",
     "EMERGENCY_TRAVEL_ASSISTANT_PROMPT",
+    "GUARDRAILS_PROMPT",
 ]
 
