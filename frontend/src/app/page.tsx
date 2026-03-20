@@ -30,6 +30,7 @@ type ChatResponse = {
 };
 
 export default function Home() {
+  const [threadId] = useState(() => crypto.randomUUID());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -77,7 +78,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify({ message: trimmed, threadId }),
       });
 
       if (!response.ok) {

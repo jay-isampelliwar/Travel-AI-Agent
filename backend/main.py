@@ -10,6 +10,7 @@ load_dotenv()
 
 class AgentRequest(BaseModel):
     user_message: str
+    thread_id: str | None = None
 
 
 class AgentResponse(BaseModel):
@@ -22,7 +23,6 @@ app = FastAPI(title="Travel Intelligence Agent API")
 
 # Create a single agent instance to be reused across requests
 agent = TravelIntelligenceAgent()
-config = {"configurable": {"thread_id": "user_123"}}
 
 
 @app.get("/health")
@@ -32,6 +32,9 @@ async def health_check():
 
 @app.post("/agent", response_model=AgentResponse)
 async def run_agent(payload: AgentRequest) -> AgentResponse:
+    thread_id = payload.thread_id or "user_123"
+    config = {"configurable": {"thread_id": thread_id}}
+
     result = await agent.graph.ainvoke(
         {
             "messages": [

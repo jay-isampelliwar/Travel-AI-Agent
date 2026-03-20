@@ -1,8 +1,11 @@
 export async function POST(request: Request) {
-  const body = (await request.json()) as { message?: string };
+  const body = (await request.json()) as { message?: string; threadId?: string };
 
   if (!body.message || typeof body.message !== "string") {
     return new Response("Invalid message", { status: 400 });
+  }
+  if (!body.threadId || typeof body.threadId !== "string") {
+    return new Response("Invalid thread id", { status: 400 });
   }
 
   // Previously using ngrok URL:
@@ -15,7 +18,10 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ user_message: body.message }),
+    body: JSON.stringify({
+      user_message: body.message,
+      thread_id: body.threadId,
+    }),
   });
 
   if (!backendResponse.ok) {
