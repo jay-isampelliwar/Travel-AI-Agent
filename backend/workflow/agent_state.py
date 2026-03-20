@@ -31,3 +31,5 @@ class AgentState(MessagesState):
 
     ui_type: Optional[str]
     hotel_search_results: Optional[dict]
+
+    cycle_count: Optional[int]
