@@ -88,7 +88,7 @@ def search_restaurants(
             city=city,
             cuisine=cuisine,
             price_range=price_range,
-            restaurants=restaurants[:6]
+            restaurants=restaurants
         )
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(restaurants)} restaurants in {city}\033[0m")

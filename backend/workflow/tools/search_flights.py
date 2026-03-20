@@ -75,7 +75,7 @@ def search_flights(
             source_city=source_city,
             destination_city=destination_city,
             departure_date=parsed_date.isoformat(),
-            flights=flights[:3]
+            flights=flights
         )
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(flights)} flight results\033[0m")

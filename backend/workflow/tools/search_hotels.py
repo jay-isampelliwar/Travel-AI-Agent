@@ -92,7 +92,7 @@ def search_hotels(
             city=city,
             checkin_date=checkin.isoformat(),
             checkout_date=checkout.isoformat(),
-            hotels=hotels[:5]
+            hotels=hotels
         )
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(hotels)} hotel options for {city}\033[0m")
