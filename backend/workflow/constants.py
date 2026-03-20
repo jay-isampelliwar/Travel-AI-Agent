@@ -1,51 +1,6 @@
 
-from typing import Literal
-
 TOOLS_NODE = "tools"
 INIT_NODE = "init"
 GUARDRAILS_NODE = "guardrails"
 FOLLOW_UP_QUESTION_NODE = "follow_up_question"
-
-
-INTENT_CLASSIFIER_NODE = "intent_classifier"
-QUERY_GENERATOR_NODE = "query_generator"
-PLANNER_NODE = "planner"
-SEARCH_NODE = "search"
-
-# Intent-specific node names (graph node IDs)
 CHAT_NODE = "chat"
-EMERGENCY_TRAVEL_ASSISTANT_NODE = "emergency_travel_assistant"
-PLAN_TRIP_NODE = "plan_trip"
-HOTEL_RESTAURANT_SEARCH_NODE = "hotel_restaurant_search"
-UPDATE_TRIP_NODE = "update_trip"
-TRAVEL_TIME_CALCULATION_NODE = "travel_time_calculation"
-HOTEL_BOOKING_NODE = "hotel_booking"
-SEARCH_ALTERNATIVE_ROUTES_NODE = "search_alternative_routes"
-LOCAL_ATTRACTIONS_NODE = "local_attractions"
-GET_PLACE_PICTURES_NODE = "get_place_pictures"
-
-# Intent label constants (as used in the classifier prompt)
-EMERGENCY_TRAVEL_ASSISTANT_INTENT = "EMERGENCY_TRAVEL_ASSISTANT"
-PLAN_TRIP_INTENT = "PLAN_TRIP"
-HOTEL_RESTAURANT_SEARCH_INTENT = "HOTEL_RESTAURANT_SEARCH"
-UPDATE_TRIP_INTENT = "UPDATE_TRIP"
-TRAVEL_TIME_CALCULATION_INTENT = "TRAVEL_TIME_CALCULATION"
-HOTEL_BOOKING_INTENT = "HOTEL_BOOKING"
-SEARCH_ALTERNATIVE_ROUTES_INTENT = "SEARCH_ALTERNATIVE_ROUTES"
-LOCAL_ATTRACTIONS_INTENT = "LOCAL_ATTRACTIONS"
-GET_PLACE_PICTURES_INTENT = "GET_PLACE_PICTURES"
-CHAT_INTENT = "CHAT"
-
-# Union type of all supported classifier intent labels
-INTENT_TYPES = Literal[
-    "EMERGENCY_TRAVEL_ASSISTANT",
-    "PLAN_TRIP",
-    "HOTEL_RESTAURANT_SEARCH",
-    "UPDATE_TRIP",
-    "TRAVEL_TIME_CALCULATION",
-    "HOTEL_BOOKING",
-    "SEARCH_ALTERNATIVE_ROUTES",
-    "LOCAL_ATTRACTIONS",
-    "GET_PLACE_PICTURES",
-    "CHAT",
-]
