@@ -16,11 +16,11 @@ from .constants import (
 from .agent_state import AgentState
 from .prompts import (
     SYSTEM_INSTRUCTION,
-    FOLLOW_UP_QUESTIONS_PROMPT,
+    FOLLOW_UP_SUGGESTIONS_PROMPT,
     GUARDRAILS_PROMPT,
 )
 
-from .model import FollowUpQuestion
+from .model import FollowUpSuggestions
 from .utils import get_current_date_time, bottle_mermaid_png
 from .tools import ALL_TOOLS
 from .services import LLM, TavilySearchService
@@ -72,6 +72,7 @@ class TravelIntelligenceAgent:
 
         return {"guardrail_decision": classification}
 
+    @observe(name="guardrail_router")
     def _guardrail_router(self, state: AgentState) -> str:
         return state.get("guardrail_decision") or CHAT_NODE
 
@@ -97,23 +98,20 @@ class TravelIntelligenceAgent:
     @observe(name=FOLLOW_UP_QUESTION_NODE)
     def _follow_up_question_node(self, state: AgentState) -> Dict:
         
-        messages = state["messages"]
-
+        last_message = state["messages"][-1].content
         current_date_time = state["current_date_time"]
 
-        context = "/n".join(message.content for message in messages)
-
-        system_instruction = FOLLOW_UP_QUESTIONS_PROMPT.format(
-            context=context,
+        system_instruction = FOLLOW_UP_SUGGESTIONS_PROMPT.format(
+            last_message=last_message,
             current_date_time=current_date_time
             )
             
-        response = self.llm_with_tools.with_structured_output(FollowUpQuestion).invoke(
-            [SystemMessage(content=system_instruction)] + messages
+        response = self.llm_with_tools.with_structured_output(FollowUpSuggestions).invoke(
+            [SystemMessage(content=system_instruction)]
             )
 
         return {
-            "follow_up_questions": response.questions
+            "follow_up_questions": response.suggestions
         }
 
 
