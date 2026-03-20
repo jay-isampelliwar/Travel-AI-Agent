@@ -3,6 +3,10 @@ from typing import Literal
 
 TOOLS_NODE = "tools"
 INIT_NODE = "init"
+GUARDRAILS_NODE = "guardrails"
+FOLLOW_UP_QUESTION_NODE = "follow_up_question"
+
+
 INTENT_CLASSIFIER_NODE = "intent_classifier"
 QUERY_GENERATOR_NODE = "query_generator"
 PLANNER_NODE = "planner"
