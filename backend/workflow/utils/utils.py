@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import logging
 from typing import Any, Optional
+from .logger import get_logger
 
 
 def get_current_date_time() -> str:
@@ -20,7 +21,7 @@ def bottle_mermaid_png(
 
     Returns the output path on success, otherwise None.
     """
-    log = logger or logging.getLogger(__name__)
+    log = logger or get_logger(__name__)
 
     graphs_dir = os.path.join(os.path.dirname(__file__), "../..", output_dirname)
     os.makedirs(graphs_dir, exist_ok=True)

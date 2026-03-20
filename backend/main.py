@@ -3,9 +3,11 @@ from pydantic import BaseModel
 from typing import Any, Dict, List
 from langchain_core.messages import HumanMessage
 from workflow.agent import TravelIntelligenceAgent
+from workflow.utils.logger import setup_logging
 from dotenv import load_dotenv
 
 load_dotenv()
+setup_logging()
 
 
 class AgentRequest(BaseModel):

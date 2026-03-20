@@ -1,11 +1,11 @@
 import hashlib
 import json
-import logging
 from typing import Any, Optional
 
 import redis
+from ..utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RedisCachingService:

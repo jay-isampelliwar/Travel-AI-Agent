@@ -3,6 +3,9 @@ from typing import Dict, Callable, Any
 from langchain_core.messages import AIMessage
 from langchain_core.exceptions import LangChainException
 from ..agent_state import AgentState
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 def safe_llm_call(fallback_msg: str = "Temporary issue, please try again."):
     """Reusable decorator for robust LLM node error handling"""
@@ -15,14 +18,13 @@ def safe_llm_call(fallback_msg: str = "Temporary issue, please try again."):
             except Exception as e:
                 thread_id = state.get("configurable", {}).get("thread_id", "unknown")
 
-                # TODO Implement logger here.
-                # logger.error(
-                #     "LLM node failed",
-                #     exc_info=e,
-                #     node=func.__name__,
-                #     thread_id=thread_id,
-                #     msg_count=len(state["messages"])
-                # )
+                logger.error(
+                    "LLM node failed | node=%s | thread_id=%s | msg_count=%s",
+                    func.__name__,
+                    thread_id,
+                    len(state.get("messages", [])),
+                    exc_info=e,
+                )
 
                 if isinstance(e, LangChainException) and hasattr(e, 'lc_error_code'):
                     lc_code = e.lc_error_code

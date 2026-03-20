@@ -1,5 +1,4 @@
 from typing import Dict
-import logging
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
@@ -37,16 +36,10 @@ from workflow.utils.utils import get_current_date_time, bottle_mermaid_png
 from .tools import ALL_TOOLS
 from .services import LLM, TavilySearchService
 from .utils.safe_llm_decorator import safe_llm_call
+from .utils.logger import get_logger, setup_logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    _handler = logging.StreamHandler()
-    _formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    _handler.setFormatter(_formatter)
-    logger.addHandler(_handler)
+setup_logging()
+logger = get_logger(__name__)
 
 
 def _configure_llm_cache() -> None:
