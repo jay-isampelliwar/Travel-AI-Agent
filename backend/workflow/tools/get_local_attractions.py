@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.tavily import TavilySearchService
+from ..services.caching import RedisCachingService
 
 
 class LocalAttractionsInput(BaseModel):
@@ -42,19 +43,21 @@ def get_local_attractions(destination: str) -> str:
     """Discover local attractions with structured output."""
 
     print(f"\033[38;5;208m>>> [TOOL START] get_local_attractions: {destination}\033[0m")
+    cache_service = RedisCachingService()
+    cache_key = cache_service.build_key(
+        "tool:get_local_attractions",
+        {"destination": destination},
+    )
+    cached = cache_service.get_json(cache_key)
+    if cached:
+        print("\033[38;5;208m>>> [CACHE HIT] get_local_attractions\033[0m")
+        return LocalAttractionsOutput(**cached).model_dump_json()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
         tavily = TavilySearchService()
         return tavily.invoke(
-            {
-                "query": (
-                    f"Top attractions in {destination} including landmarks, museums, parks, "
-                    "local markets, neighborhoods, and unique things to do"
-                ),
-                "max_results": 10,
-                "search_depth": "advanced",
-            }
+            f"Top attractions in {destination} including landmarks, museums, parks, local markets, neighborhoods, and unique things to do"
         )
 
     try:
@@ -73,6 +76,7 @@ def get_local_attractions(destination: str) -> str:
             )
 
         result = LocalAttractionsOutput(destination=destination, attractions=items)
+        cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Found {len(items)} attraction sources for {destination}\033[0m"
         )

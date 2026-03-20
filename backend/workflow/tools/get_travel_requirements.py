@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.tavily import TavilySearchService
+from ..services.caching import RedisCachingService
 
 
 class TravelRequirementsInput(BaseModel):
@@ -41,20 +42,21 @@ def get_travel_requirements(citizenship: str, destination_country: str) -> str:
     print(
         f"\033[38;5;208m>>> [TOOL START] get_travel_requirements: {citizenship} -> {destination_country}\033[0m"
     )
+    cache_service = RedisCachingService()
+    cache_key = cache_service.build_key(
+        "tool:get_travel_requirements",
+        {"citizenship": citizenship, "destination_country": destination_country},
+    )
+    cached = cache_service.get_json(cache_key)
+    if cached:
+        print("\033[38;5;208m>>> [CACHE HIT] get_travel_requirements\033[0m")
+        return TravelRequirementsOutput(**cached).model_dump_json()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
         tavily = TavilySearchService()
         return tavily.invoke(
-            {
-                "query": (
-                    f"Travel entry requirements for {citizenship} citizens visiting {destination_country}: "
-                    "visa rules, passport validity, vaccination requirements, customs and immigration updates, "
-                    "official government sources"
-                ),
-                "max_results": 8,
-                "search_depth": "advanced",
-            }
+            f"{citizenship} passport {destination_country} visa, entry rules, vaccinations"
         )
 
     try:
@@ -80,6 +82,7 @@ def get_travel_requirements(citizenship: str, destination_country: str) -> str:
             ],
             sources=urls[:5],
         )
+        cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Collected {len(result.sources)} requirement sources\033[0m"
         )

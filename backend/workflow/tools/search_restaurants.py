@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.tavily import TavilySearchService
+from ..services.caching import RedisCachingService
 
 
 class RestaurantSearchInput(BaseModel):
@@ -49,6 +50,17 @@ def search_restaurants(
     """Production restaurant search with optional filters, retries, structured output."""
 
     print(f"\033[38;5;208m>>> [TOOL START] search_restaurants: {city}, cuisine={cuisine}, price={price_range}\033[0m")
+    cache_service = RedisCachingService()
+    cache_payload = {
+        "city": city,
+        "cuisine": cuisine,
+        "price_range": price_range,
+    }
+    cache_key = cache_service.build_key("tool:search_restaurants", cache_payload)
+    cached = cache_service.get_json(cache_key)
+    if cached:
+        print("\033[38;5;208m>>> [CACHE HIT] search_restaurants\033[0m")
+        return RestaurantSearchOutput(**cached).model_dump_json()
 
     query_parts = [f"Top restaurants {city}"]
     if cuisine:
@@ -65,8 +77,6 @@ def search_restaurants(
         tavily = TavilySearchService()
         return tavily.invoke({
             "query": query,
-            "max_results": 10,
-            "search_depth": "advanced"
         })
 
     try:
@@ -90,6 +100,7 @@ def search_restaurants(
             price_range=price_range,
             restaurants=restaurants
         )
+        cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(restaurants)} restaurants in {city}\033[0m")
         return result.model_dump_json()

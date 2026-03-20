@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.tavily import TavilySearchService
+from ..services.caching import RedisCachingService
 
 
 class PlacePicturesInput(BaseModel):
@@ -37,19 +38,21 @@ def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
 
     query_target = f"{place_name}, {city}" if city else place_name
     print(f"\033[38;5;208m>>> [TOOL START] get_place_pictures: {query_target}\033[0m")
+    cache_service = RedisCachingService()
+    cache_key = cache_service.build_key(
+        "tool:get_place_pictures",
+        {"place_name": place_name, "city": city},
+    )
+    cached = cache_service.get_json(cache_key)
+    if cached:
+        print("\033[38;5;208m>>> [CACHE HIT] get_place_pictures\033[0m")
+        return PlacePicturesOutput(**cached).model_dump_json()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
         tavily = TavilySearchService()
         return tavily.invoke(
-            {
-                "query": (
-                    f"{query_target} high quality photos images official tourism media kit "
-                    "Wikimedia Unsplash Pexels"
-                ),
-                "max_results": 12,
-                "search_depth": "advanced",
-            }
+            f"{query_target} travel photos site:unsplash.com OR site:wikimedia.org OR site:pexels.com"
         )
 
     def _extract_image_urls(results: List[dict]) -> List[str]:
@@ -88,6 +91,7 @@ def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
             image_urls=image_urls,
             source_urls=source_urls[:8],
         )
+        cache_service.set_json(cache_key, out.model_dump(), ttl_seconds=3600)
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Resolved {len(image_urls)} image urls for {query_target}\033[0m"
         )

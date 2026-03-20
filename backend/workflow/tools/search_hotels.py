@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..services.tavily import TavilySearchService
+from ..services.caching import RedisCachingService
 
 
 class HotelSearchInput(BaseModel):
@@ -45,10 +46,23 @@ def search_hotels(
         city: str,
         checkin_date: str,
         checkout_date: str,
+        budget: Optional[int] = None,
 ) -> str:
     """Production hotel search with validation, retries, and structured parsing."""
 
     print(f"\033[38;5;208m>>> [TOOL START] search_hotels: {city}, {checkin_date} to {checkout_date}\033[0m")
+    cache_service = RedisCachingService()
+    cache_payload = {
+        "city": city,
+        "checkin_date": checkin_date,
+        "checkout_date": checkout_date,
+        "budget": budget,
+    }
+    cache_key = cache_service.build_key("tool:search_hotels", cache_payload)
+    cached = cache_service.get_json(cache_key)
+    if cached:
+        print("\033[38;5;208m>>> [CACHE HIT] search_hotels\033[0m")
+        return HotelSearchOutput(**cached).model_dump_json()
 
     try:
         checkin = datetime.strptime(checkin_date, "%Y-%m-%d").date()
@@ -70,8 +84,6 @@ def search_hotels(
         nights = (checkout - checkin).days
         return tavily.invoke({
             "query": f"Best hotels {city} {checkin_date} to {checkout_date} ({nights} nights) - price/night, ratings 4+, amenities, neighborhoods",
-            "max_results": 10,
-            "search_depth": "advanced"
         })
 
     try:
@@ -94,6 +106,7 @@ def search_hotels(
             checkout_date=checkout.isoformat(),
             hotels=hotels
         )
+        cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(hotels)} hotel options for {city}\033[0m")
         return result.model_dump_json()
