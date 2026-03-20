@@ -33,3 +33,4 @@ class AgentState(MessagesState):
     hotel_search_results: Optional[dict]
 
     cycle_count: Optional[int]
+    guardrail_decision: Optional[str]

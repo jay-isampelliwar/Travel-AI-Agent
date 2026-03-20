@@ -55,7 +55,7 @@ class TravelIntelligenceAgent:
         }
 
     @observe(name=GUARDRAILS_NODE)
-    def _guardrail_node(self, state: AgentState) -> str:
+    def _guardrail_node(self, state: AgentState) -> Dict:
         logger.info("%s", GUARDRAILS_NODE)
 
         user_message = state["messages"][-1].content
@@ -70,7 +70,10 @@ class TravelIntelligenceAgent:
 
         logger.info("Guardrail classification: %s", classification)
 
-        return classification
+        return {"guardrail_decision": classification}
+
+    def _guardrail_router(self, state: AgentState) -> str:
+        return state.get("guardrail_decision") or CHAT_NODE
 
     @observe(name=CHAT_NODE)
     def _chat_node(self, state: AgentState) -> Dict:
@@ -129,7 +132,7 @@ class TravelIntelligenceAgent:
         graph_builder.add_edge(INIT_NODE, GUARDRAILS_NODE)
         graph_builder.add_conditional_edges(
             GUARDRAILS_NODE,
-            self._guardrail_node,
+            self._guardrail_router,
             {
                 CHAT_NODE: CHAT_NODE,
                 END: END,
