@@ -149,6 +149,7 @@ dependencies = [
     { name = "langchain-tavily" },
     { name = "langfuse" },
     { name = "langgraph" },
+    { name = "langgraph-checkpoint-redis" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "redis" },
@@ -168,6 +169,7 @@ requires-dist = [
     { name = "langchain-tavily", specifier = ">=0.2.17" },
     { name = "langfuse", specifier = ">=4.0.0" },
     { name = "langgraph", specifier = ">=1.1.2" },
+    { name = "langgraph-checkpoint-redis", specifier = ">=0.4.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "redis", specifier = ">=7.3.0" },
@@ -1094,6 +1096,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/44/a8df45d1e8b4637e29789fa8bae1db022c953cc7ac80093cfc52e923547e/langgraph_checkpoint-4.0.1.tar.gz", hash = "sha256:b433123735df11ade28829e40ce25b9be614930cd50245ff2af60629234befd9", size = 158135 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/65/4c/09a4a0c42f5d2fc38d6c4d67884788eff7fd2cfdf367fdf7033de908b4c0/langgraph_checkpoint-4.0.1-py3-none-any.whl", hash = "sha256:e3adcd7a0e0166f3b48b8cf508ce0ea366e7420b5a73aa81289888727769b034", size = 50453 },
+]
+
+[[package]]
+name = "langgraph-checkpoint-redis"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langgraph-checkpoint" },
+    { name = "orjson" },
+    { name = "redis" },
+    { name = "redisvl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/69/3ba1b17a95b9b6be432ef9be95f64529dbee043d55bf1f1a5aff9b4ce7f5/langgraph_checkpoint_redis-0.4.0.tar.gz", hash = "sha256:7db66f4c5919c7d939fe6d62c5f9a4c5147434142eca6cdad9fd470d11ccfb74", size = 118104 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/41/de1658d54dbd50f92aeee6539ebf9abe1c54ea9954f4314d9634f3311803/langgraph_checkpoint_redis-0.4.0-py3-none-any.whl", hash = "sha256:ba8e48943fd056bae55a87284ab47159e23ca0038a1491374f65564c1af99a35", size = 130151 },
 ]
 
 [[package]]
