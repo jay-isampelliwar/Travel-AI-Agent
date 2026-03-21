@@ -3,8 +3,6 @@ from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.redis import RedisSaver
-from langfuse.langchain import CallbackHandler
-from langfuse import observe
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.globals import set_llm_cache
 from langchain_core.caches import InMemoryCache
@@ -67,10 +65,8 @@ class TravelIntelligenceAgent:
         self.llm = LLM()
         self.llm_with_tools = self.llm.bind_tools(ALL_TOOLS)
         self.search_service = TavilySearchService()
-        self.langfuse_handler = CallbackHandler()
         self.graph = self._build_graph()
 
-    @observe(name=INIT_NODE)
     def _init_node(self, state: AgentState) -> Dict:
         logger.info("%s", INIT_NODE)
         logger.info("%s",  (state.get("cycle_count") or 0))
@@ -79,7 +75,6 @@ class TravelIntelligenceAgent:
             "cycle_count": (state.get("cycle_count") or 0) + 1
         }
 
-    @observe(name=INPUT_GUARDRAIL_NODE)
     @safe_llm_call(fallback_msg=INPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _input_guardrail_node(self, state: AgentState) -> Dict:
         logger.info("%s", INPUT_GUARDRAIL_NODE)
@@ -98,11 +93,9 @@ class TravelIntelligenceAgent:
 
         return {"input_guardrail_decision": classification}
 
-    @observe(name="input_guardrail_router")
     def _input_guardrail_router(self, state: AgentState) -> str:
         return state.get("input_guardrail_decision") or CHAT_NODE
 
-    @observe(name=CHAT_NODE)
     @safe_llm_call(fallback_msg=CHAT_NODE_FALLBACK_MSG)
     def _chat_node(self, state: AgentState) -> Dict:
         logger.info("%s", CHAT_NODE)
@@ -128,7 +121,6 @@ class TravelIntelligenceAgent:
             "messages": [response]
         }
 
-    @observe(name=OUTPUT_GUARDRAILS_NODE)
     @safe_llm_call(fallback_msg=OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _output_guardrail_node(self, state: AgentState) -> Dict:
         logger.info("%s", OUTPUT_GUARDRAILS_NODE)
@@ -151,10 +143,9 @@ class TravelIntelligenceAgent:
             "output_guardrail_applied": True,
         }
 
-    @observe(name=FOLLOW_UP_QUESTION_NODE)
     @safe_llm_call(fallback_msg=FOLLOW_UP_QUESTION_NODE_FALLBACK_MSG)
     def _follow_up_question_node(self, state: AgentState) -> Dict:
-        
+
         last_message = state["messages"][-1].content
         current_date_time = state["current_date_time"]
 
@@ -162,7 +153,7 @@ class TravelIntelligenceAgent:
             last_message=last_message,
             current_date_time=current_date_time
             )
-            
+
         response = self.llm_with_tools.with_structured_output(FollowUpSuggestions).invoke(
             [SystemMessage(content=system_instruction)]
             )
@@ -171,7 +162,6 @@ class TravelIntelligenceAgent:
             "follow_up_questions": response.suggestions
         }
 
-    @observe(name=SEARCH_RESULT_MAPPER_NODE)
     @safe_llm_call(fallback_msg="")
     def _search_result_mapper_node(self, state: AgentState) -> Dict:
 
@@ -187,12 +177,12 @@ class TravelIntelligenceAgent:
         #     [SystemMessage(content=system_instruction)]
         # )
 
-        return {
-            **state
-            # "follow_up_questions": response.suggestions
-        }
+        # IMPORTANT:
+        # This node runs in parallel with FOLLOW_UP_QUESTION_NODE.
+        # Returning the full state here causes duplicate writes for keys
+        # like `follow_up_questions`, which raises InvalidUpdateError.
+        return {}
 
-    @observe(name=MERGER_NODE)
     @safe_llm_call(fallback_msg="")
     def _join_node(self, state: AgentState) -> AgentState:
         """
@@ -212,9 +202,8 @@ class TravelIntelligenceAgent:
         #
         # state["final_output"] = final_output
 
-        return {
-            **state
-        }
+        return state
+
 
     def _build_graph(self) :
 

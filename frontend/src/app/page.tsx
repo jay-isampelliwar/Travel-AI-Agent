@@ -10,6 +10,12 @@ import {
   HotelSearchResultsSkeleton,
 } from "../components/HotelSearchResults";
 import { FollowUpQuestions } from "../components/FollowUpQuestions";
+import { NamePromptModal } from "../components/NamePromptModal";
+import { SessionInfoBadge } from "../components/SessionInfoBadge";
+import {
+  createChatSession,
+  type ChatSessionContext,
+} from "../lib/chatSession";
 
 type Message = {
   id: number;
@@ -30,7 +36,9 @@ type ChatResponse = {
 };
 
 export default function Home() {
-  const [threadId] = useState(() => crypto.randomUUID());
+  const [chatSession, setChatSession] = useState<ChatSessionContext | null>(
+    null,
+  );
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -53,7 +61,7 @@ export default function Home() {
 
   async function sendMessage(userText: string) {
     const trimmed = userText.trim();
-    if (!trimmed || isLoading) return;
+    if (!trimmed || isLoading || !chatSession) return;
 
     setInput("");
 
@@ -78,7 +86,12 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: trimmed, threadId }),
+        body: JSON.stringify({
+          message: trimmed,
+          threadId: chatSession.threadId,
+          sessionId: chatSession.sessionId,
+          userId: chatSession.userId,
+        }),
       });
 
       if (!response.ok) {
@@ -209,8 +222,12 @@ export default function Home() {
     </svg>
   );
 
+  function handleStartSession(userName: string) {
+    setChatSession(createChatSession(userName));
+  }
+
   return (
-    <div className="flex h-screen justify-center bg-stone-100 px-4 py-4 overflow-hidden">
+    <div className="flex h-screen justify-center overflow-hidden bg-stone-100 px-4 py-4">
       <main className="flex w-full max-w-[90rem] flex-1 flex-col min-h-0">
         {/* Header */}
         <header className="mb-5 flex items-center justify-between border-b border-stone-200 pb-5">
@@ -254,6 +271,7 @@ export default function Home() {
                     <button
                       key={p}
                       onClick={() => sendMessage(p)}
+                      disabled={!chatSession}
                       className="rounded-full border border-stone-200 bg-stone-50 px-3.5 py-1.5 text-base text-stone-500 transition-colors hover:border-stone-300 hover:bg-stone-100 hover:text-neutral-800"
                     >
                       {p}
@@ -361,10 +379,11 @@ export default function Home() {
               onKeyDown={handleKeyDown}
               placeholder="Ask about destinations, itineraries, costs…"
               className="flex-1 resize-none overflow-hidden rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-lg text-neutral-900 placeholder:text-stone-300 outline-none transition-colors focus:border-stone-400"
+              disabled={!chatSession}
             />
             <button
               type="submit"
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || !input.trim() || !chatSession}
               aria-label="Send message"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition-all hover:opacity-80 active:scale-95 disabled:cursor-not-allowed disabled:opacity-30"
             >
@@ -373,6 +392,14 @@ export default function Home() {
           </form>
         </div>
       </main>
+      <NamePromptModal isOpen={!chatSession} onStart={handleStartSession} />
+      {chatSession && (
+        <SessionInfoBadge
+          userId={chatSession.userId}
+          sessionId={chatSession.sessionId}
+          threadId={chatSession.threadId}
+        />
+      )}
     </div>
   );
 }
