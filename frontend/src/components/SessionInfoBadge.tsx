@@ -10,7 +10,7 @@ export function SessionInfoBadge({
   threadId,
 }: SessionInfoBadgeProps) {
   return (
-    <aside className="fixed bottom-4 right-4 z-40 max-w-xs rounded-xl border border-stone-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur">
+    <aside className="fixed top-4 right-4 z-40 max-w-xs rounded-xl border border-stone-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur">
       <p className="font-semibold uppercase tracking-wide text-stone-500">
         Session Info
       </p>
