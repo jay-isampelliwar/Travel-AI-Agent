@@ -18,6 +18,8 @@ from .constant import (
     INPUT_GUARDRAIL_NODE,
     FOLLOW_UP_QUESTION_NODE,
     OUTPUT_GUARDRAILS_NODE,
+    SEARCH_RESULT_MAPPER_NODE,
+    MERGER_NODE,
     CHAT_NODE_FALLBACK_MSG,
     INPUT_GUARDRAIL_NODE_FALLBACK_MSG,
     OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG,
@@ -116,7 +118,13 @@ class TravelIntelligenceAgent:
         messages = state["messages"]
         response = self.llm_with_tools.invoke([system_instruction] + messages)
 
+        tool_name = ""
+        if response.tool_calls:
+            tool_call = response.tool_calls[0]
+            tool_name = tool_call["name"]
+
         return {
+            "last_tool_call": tool_name,
             "messages": [response]
         }
 
@@ -163,6 +171,50 @@ class TravelIntelligenceAgent:
             "follow_up_questions": response.suggestions
         }
 
+    @observe(name=SEARCH_RESULT_MAPPER_NODE)
+    @safe_llm_call(fallback_msg="")
+    def _search_result_mapper_node(self, state: AgentState) -> Dict:
+
+        # last_message = state["messages"][-1].content
+        # current_date_time = state["current_date_time"]
+        #
+        # system_instruction = FOLLOW_UP_SUGGESTIONS_PROMPT.format(
+        #     last_message=last_message,
+        #     current_date_time=current_date_time
+        # )
+        #
+        # response = self.llm_with_tools.with_structured_output(FollowUpSuggestions).invoke(
+        #     [SystemMessage(content=system_instruction)]
+        # )
+
+        return {
+            **state
+            # "follow_up_questions": response.suggestions
+        }
+
+    @observe(name=MERGER_NODE)
+    @safe_llm_call(fallback_msg="")
+    def _join_node(self, state: AgentState) -> AgentState:
+        """
+        Combine outputs from both branches.
+        Assumes both nodes write to state.
+        """
+
+        # # Example: combine outputs safely
+        # follow_up = state.get("follow_up_question")
+        # mapped_results = state.get("mapped_results")
+        #
+        # # You can merge into final response
+        # final_output = {
+        #     "follow_up_question": follow_up,
+        #     "mapped_results": mapped_results
+        # }
+        #
+        # state["final_output"] = final_output
+
+        return {
+            **state
+        }
 
     def _build_graph(self) :
 
@@ -173,7 +225,9 @@ class TravelIntelligenceAgent:
         # graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
         graph_builder.add_node(OUTPUT_GUARDRAILS_NODE, self._output_guardrail_node)
+        graph_builder.add_node(SEARCH_RESULT_MAPPER_NODE, self._search_result_mapper_node)
         graph_builder.add_node(FOLLOW_UP_QUESTION_NODE, self._follow_up_question_node)
+        graph_builder.add_node(MERGER_NODE, self._join_node)
 
 
         graph_builder.add_edge(START, INIT_NODE)
@@ -199,7 +253,10 @@ class TravelIntelligenceAgent:
 
         graph_builder.add_edge(TOOLS_NODE, CHAT_NODE)
         graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, FOLLOW_UP_QUESTION_NODE)
-        graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, END)
+        graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, SEARCH_RESULT_MAPPER_NODE)
+        graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, MERGER_NODE)
+        graph_builder.add_edge(SEARCH_RESULT_MAPPER_NODE, MERGER_NODE)
+        graph_builder.add_edge(MERGER_NODE, END)
 
         try:
             redis_client = get_redis_client()
