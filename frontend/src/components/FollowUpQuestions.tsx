@@ -9,8 +9,6 @@ export function FollowUpQuestions({
 }: FollowUpQuestionsProps) {
   if (!questions || questions.length === 0) return null;
 
-  console.log(questions);
-
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {questions.map((q) => (
