@@ -47,7 +47,7 @@ def search_hotels(
         checkin_date: str,
         checkout_date: str,
         budget: Optional[int] = None,
-) -> str:
+) -> dict:
     """Production hotel search with validation, retries, and structured parsing."""
 
     print(f"\033[38;5;208m>>> [TOOL START] search_hotels: {city}, {checkin_date} to {checkout_date}\033[0m")
@@ -62,7 +62,7 @@ def search_hotels(
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] search_hotels\033[0m")
-        return HotelSearchOutput(**cached).model_dump_json()
+        return HotelSearchOutput(**cached).model_dump()
 
     try:
         checkin = datetime.strptime(checkin_date, "%Y-%m-%d").date()
@@ -75,7 +75,7 @@ def search_hotels(
             hotels=[], error=f"Date error: {str(e)}"
         )
         print(f"\033[38;5;208m>>> [TOOL WARN] Hotel date validation failed: {e}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def safe_tavily_search() -> dict:
@@ -109,7 +109,7 @@ def search_hotels(
         cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(hotels)} hotel options for {city}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] Hotel search failed: {str(e)}\033[0m")
@@ -117,4 +117,4 @@ def search_hotels(
             city=city, checkin_date=checkin_date, checkout_date=checkout_date,
             hotels=[], error=f"Search error: {str(e)}"
         )
-        return result.model_dump_json()
+        return result.model_dump()

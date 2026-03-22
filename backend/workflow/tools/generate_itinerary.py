@@ -160,7 +160,7 @@ def _segment_text(destination: str, theme: str, interest: str, segment: str) -> 
 )
 def generate_itinerary(
     destination: str, days: int, interests: Optional[List[str]] = None
-) -> str:
+) -> dict:
     """Generate a structured itinerary as JSON for downstream consumption."""
 
     interests_list = interests or []
@@ -209,7 +209,7 @@ def generate_itinerary(
                 "Group nearby sights on the same day to reduce transit time.",
             ],
         )
-        return output.model_dump_json()
+        return output.model_dump()
 
     normalized_interests = _normalize_interests(input_model.interests)
 
@@ -269,4 +269,4 @@ def generate_itinerary(
         f"\033[38;5;208m>>> [TOOL INFO] Generated itinerary for {input_model.destination} "
         f"({input_model.days} days, interests={normalized_interests})\033[0m"
     )
-    return output.model_dump_json()
+    return output.model_dump()

@@ -46,7 +46,7 @@ class WeatherOutput(BaseModel):
     wait=wait_exponential(multiplier=1, min=2, max=10),
     retry=retry_if_exception_type(requests.RequestException)
 )
-def get_weather(city: str, date: str) -> str:
+def get_weather(city: str, date: str) -> dict:
     """Production weather lookup with retries, structured output, full validation."""
 
     print(f"\033[38;5;208m>>> [TOOL START] get_weather: {city} on {date}\033[0m")
@@ -62,7 +62,7 @@ def get_weather(city: str, date: str) -> str:
             resolved_city=city, date=date, summary="",
             error="Invalid date format. Use YYYY-MM-DD (e.g., 2024-12-15)."
         )
-        return result.model_dump_json()
+        return result.model_dump()
 
     geocode_url = "https://geocoding-api.open-meteo.com/v1/search"
     try:
@@ -89,7 +89,7 @@ def get_weather(city: str, date: str) -> str:
             resolved_city=city, date=target_date.isoformat(), summary="",
             error=f"City lookup failed: {str(e)}"
         )
-        return result.model_dump_json()
+        return result.model_dump()
 
     weather_params = {
         "latitude": lat, "longitude": lon, "timezone": timezone,
@@ -140,7 +140,7 @@ def get_weather(city: str, date: str) -> str:
         )
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Weather {resolved_city}: {summary}, {temp_avg:.1f}°C\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] Weather fetch failed: {str(e)}\033[0m")
@@ -149,4 +149,4 @@ def get_weather(city: str, date: str) -> str:
             date=target_date.isoformat(),
             summary="", error=f"Weather data unavailable: {str(e)}"
         )
-        return result.model_dump_json()
+        return result.model_dump()

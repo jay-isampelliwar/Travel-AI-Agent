@@ -46,7 +46,7 @@ class TripCostOutput(BaseModel):
         "local transport, and activities for low/medium/luxury budgets. Returns structured JSON."
     ),
 )
-def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
+def estimate_trip_cost(destination: str, days: int, budget_level: str) -> dict:
     """Estimate approximate travel budget with web-informed ranges and deterministic breakdown."""
 
     print(f"\033[38;5;208m>>> [TOOL START] estimate_trip_cost: {destination}, days={days}, budget={budget_level}\033[0m")
@@ -60,7 +60,7 @@ def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] estimate_trip_cost\033[0m")
-        return TripCostOutput(**cached).model_dump_json()
+        return TripCostOutput(**cached).model_dump()
 
     allowed_budgets = {"low", "medium", "luxury"}
     if normalized_budget not in allowed_budgets:
@@ -73,7 +73,7 @@ def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
             error="Invalid budget_level. Use one of: low, medium, luxury.",
         )
         print(f"\033[38;5;208m>>> [TOOL WARN] Invalid budget level: {budget_level}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     if days < 1 or days > 60:
         result = TripCostOutput(
@@ -85,7 +85,7 @@ def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
             error="Invalid trip duration. days must be between 1 and 60.",
         )
         print(f"\033[38;5;208m>>> [TOOL WARN] Invalid days: {days}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     # Baseline per-day + one-time flight assumptions in USD.
     cost_models = {
@@ -134,7 +134,7 @@ def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
         )
         cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
         print(f"\033[38;5;208m>>> [TOOL INFO] Estimated total cost {total} USD for {destination}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] estimate_trip_cost failed: {e}\033[0m")
         result = TripCostOutput(
@@ -145,4 +145,4 @@ def estimate_trip_cost(destination: str, days: int, budget_level: str) -> str:
             breakdown=[],
             error=f"Cost estimation failed: {str(e)}",
         )
-        return result.model_dump_json()
+        return result.model_dump()

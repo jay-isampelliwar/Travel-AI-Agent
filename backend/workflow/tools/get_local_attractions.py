@@ -39,7 +39,7 @@ class LocalAttractionsOutput(BaseModel):
         "landmarks, museums, neighborhoods, parks, and markets. Returns structured JSON."
     ),
 )
-def get_local_attractions(destination: str) -> str:
+def get_local_attractions(destination: str) -> dict:
     """Discover local attractions with structured output."""
 
     print(f"\033[38;5;208m>>> [TOOL START] get_local_attractions: {destination}\033[0m")
@@ -51,7 +51,7 @@ def get_local_attractions(destination: str) -> str:
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] get_local_attractions\033[0m")
-        return LocalAttractionsOutput(**cached).model_dump_json()
+        return LocalAttractionsOutput(**cached).model_dump()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
@@ -80,7 +80,7 @@ def get_local_attractions(destination: str) -> str:
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Found {len(items)} attraction sources for {destination}\033[0m"
         )
-        return result.model_dump_json()
+        return result.model_dump()
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] attractions search failed: {e}\033[0m")
         result = LocalAttractionsOutput(
@@ -88,4 +88,4 @@ def get_local_attractions(destination: str) -> str:
             attractions=[],
             error=f"Attraction lookup failed: {str(e)}",
         )
-        return result.model_dump_json()
+        return result.model_dump()

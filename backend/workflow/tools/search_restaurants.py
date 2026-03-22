@@ -46,7 +46,7 @@ def search_restaurants(
         city: str,
         cuisine: Optional[str] = None,
         price_range: Optional[str] = None,
-) -> str:
+) -> dict:
     """Production restaurant search with optional filters, retries, structured output."""
 
     print(f"\033[38;5;208m>>> [TOOL START] search_restaurants: {city}, cuisine={cuisine}, price={price_range}\033[0m")
@@ -60,7 +60,7 @@ def search_restaurants(
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] search_restaurants\033[0m")
-        return RestaurantSearchOutput(**cached).model_dump_json()
+        return RestaurantSearchOutput(**cached).model_dump()
 
     query_parts = [f"Top restaurants {city}"]
     if cuisine:
@@ -103,7 +103,7 @@ def search_restaurants(
         cache_service.set_json(cache_key, result.model_dump(), ttl_seconds=3600)
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(restaurants)} restaurants in {city}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] Restaurant search failed: {str(e)}\033[0m")
@@ -111,4 +111,4 @@ def search_restaurants(
             city=city, cuisine=cuisine, price_range=price_range,
             restaurants=[], error=f"Search failed: {str(e)}"
         )
-        return result.model_dump_json()
+        return result.model_dump()

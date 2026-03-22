@@ -33,7 +33,7 @@ def search_flights(
     source_city: str,
     destination_city: str,
     departure_date: str,
-) -> str:
+) -> dict:
     """Search flights with structured error handling and retries."""
 
     print(f"\033[38;5;208m>>> [TOOL START] search_flights: {source_city} → {destination_city} on {departure_date}\033[0m")
@@ -49,7 +49,7 @@ def search_flights(
             error="Invalid date format. Use YYYY-MM-DD (e.g., 2024-12-15)."
         )
         print(f"\033[38;5;208m>>> [TOOL WARN] Date parse error: {departure_date}\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def safe_search() -> dict:
@@ -79,7 +79,7 @@ def search_flights(
         )
 
         print(f"\033[38;5;208m>>> [TOOL INFO] Found {len(flights)} flight results\033[0m")
-        return result.model_dump_json()
+        return result.model_dump()
 
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] Flight search failed: {str(e)}\033[0m")
@@ -90,4 +90,4 @@ def search_flights(
             flights=[],
             error=f"Search failed: {str(e)}. Try again or check cities/dates."
         )
-        return result.model_dump_json()
+        return result.model_dump()

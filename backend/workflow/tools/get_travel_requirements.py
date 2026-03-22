@@ -36,7 +36,7 @@ class TravelRequirementsOutput(BaseModel):
         "traveling to a destination country based on citizenship. Returns structured JSON."
     ),
 )
-def get_travel_requirements(citizenship: str, destination_country: str) -> str:
+def get_travel_requirements(citizenship: str, destination_country: str) -> dict:
     """Retrieve high-level travel requirements from web sources."""
 
     print(
@@ -50,7 +50,7 @@ def get_travel_requirements(citizenship: str, destination_country: str) -> str:
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] get_travel_requirements\033[0m")
-        return TravelRequirementsOutput(**cached).model_dump_json()
+        return TravelRequirementsOutput(**cached).model_dump()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
@@ -86,7 +86,7 @@ def get_travel_requirements(citizenship: str, destination_country: str) -> str:
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Collected {len(result.sources)} requirement sources\033[0m"
         )
-        return result.model_dump_json()
+        return result.model_dump()
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] requirements lookup failed: {e}\033[0m")
         result = TravelRequirementsOutput(
@@ -99,4 +99,4 @@ def get_travel_requirements(citizenship: str, destination_country: str) -> str:
             sources=[],
             error=f"Travel requirements lookup failed: {str(e)}",
         )
-        return result.model_dump_json()
+        return result.model_dump()

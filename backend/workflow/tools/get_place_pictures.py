@@ -33,7 +33,7 @@ class PlacePicturesOutput(BaseModel):
         "Returns a list of direct-looking image URLs that can be appended to LLM context."
     ),
 )
-def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
+def get_place_pictures(place_name: str, city: Optional[str] = None) -> dict:
     """Return a list of image URLs for a place."""
 
     query_target = f"{place_name}, {city}" if city else place_name
@@ -46,7 +46,7 @@ def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
     cached = cache_service.get_json(cache_key)
     if cached:
         print("\033[38;5;208m>>> [CACHE HIT] get_place_pictures\033[0m")
-        return PlacePicturesOutput(**cached).model_dump_json()
+        return PlacePicturesOutput(**cached).model_dump()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=3, max=10))
     def safe_search() -> dict:
@@ -95,7 +95,7 @@ def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
         print(
             f"\033[38;5;208m>>> [TOOL INFO] Resolved {len(image_urls)} image urls for {query_target}\033[0m"
         )
-        return out.model_dump_json()
+        return out.model_dump()
     except Exception as e:
         print(f"\033[38;5;208m>>> [TOOL ERROR] place pictures lookup failed: {e}\033[0m")
         out = PlacePicturesOutput(
@@ -105,4 +105,4 @@ def get_place_pictures(place_name: str, city: Optional[str] = None) -> str:
             source_urls=[],
             error=f"Image lookup failed: {str(e)}",
         )
-        return out.model_dump_json()
+        return out.model_dump()

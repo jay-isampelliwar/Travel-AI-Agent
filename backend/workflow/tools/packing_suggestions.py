@@ -33,7 +33,7 @@ class PackingOutput(BaseModel):
         "Returns structured lists for clothing, essentials, documents, electronics, and comfort."
     ),
 )
-def packing_suggestions(destination: str, days: int, weather: str) -> str:
+def packing_suggestions(destination: str, days: int, weather: str) -> dict:
     """Generate a packing checklist as JSON."""
 
     print(
@@ -86,4 +86,4 @@ def packing_suggestions(destination: str, days: int, weather: str) -> str:
     )
 
     print(f"\033[38;5;208m>>> [TOOL INFO] Packing list generated for {destination}\033[0m")
-    return result.model_dump_json()
+    return result.model_dump()
