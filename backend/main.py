@@ -1,108 +1,86 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import Any, Dict, List
-from langchain_core.messages import HumanMessage
+from contextlib import asynccontextmanager
+from typing import Any
+
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI
+from langfuse import get_client, propagate_attributes
+
+from api.agent_graph import graph_result_to_agent_response, invoke_agent_graph
+from api.deps import get_langfuse, get_travel_agent
+from api.schemas.agent import AgentRequest, AgentResponse
 from workflow.agent import TravelIntelligenceAgent
 from workflow.observability.langfuse_runtime_config import build_agent_runtime_config
 from workflow.utils.logger import setup_logging
-from dotenv import load_dotenv
-from langfuse import get_client, propagate_attributes
+
 
 load_dotenv()
 setup_logging()
 
 
-class AgentRequest(BaseModel):
-    user_message: str
-    user_id: str
-    thread_id: str
-    session_id: str
+def create_app() -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.agent = TravelIntelligenceAgent()
+        app.state.langfuse = get_client()
+        yield
+        app.state.langfuse.shutdown()
 
-
-class AgentResponse(BaseModel):
-    message: str
-    ui_type: str = "None"
-    data: Dict[str, Any]
-    follow_up_questions: List[str]
-
-
-app = FastAPI(title="Travel Intelligence Agent API")
-
-# Create a single agent instance to be reused across requests
-agent = TravelIntelligenceAgent()
-# Initialize Langfuse client - THIS WAS MISSING
-langfuse = get_client()
-
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
-
-
-@app.post("/agent", response_model=AgentResponse)
-async def run_agent(payload: AgentRequest) -> AgentResponse:
-    config = build_agent_runtime_config(
-        thread_id=payload.thread_id,
-        user_id=payload.user_id,
-        session_id=payload.session_id,
+    app = FastAPI(
+        title="Travel Intelligence Agent API",
+        lifespan=lifespan,
     )
-    with langfuse.start_as_current_observation(
-        name="agent_request",
-        as_type="chain",
-        input={"user_message": payload.user_message},
-        metadata={"thread_id": payload.thread_id},
-    ) as request_observation:
-        with propagate_attributes(
-            session_id=payload.session_id,
+
+    @app.get("/health")
+    async def health_check():
+        return {"status": "ok"}
+
+    @app.post("/agent", response_model=AgentResponse)
+    async def run_agent(
+        payload: AgentRequest,
+        agent: TravelIntelligenceAgent = Depends(get_travel_agent),
+        langfuse: Any = Depends(get_langfuse),
+    ) -> AgentResponse:
+        config = build_agent_runtime_config(
+            thread_id=payload.thread_id,
             user_id=payload.user_id,
+            session_id=payload.session_id,
+        )
+        with langfuse.start_as_current_observation(
+            name="agent_request",
+            as_type="chain",
+            input={"user_message": payload.user_message},
             metadata={"thread_id": payload.thread_id},
-        ):
-            try:
-                result = await agent.graph.ainvoke(
-                    {
-                        "messages": [
-                            HumanMessage(content=payload.user_message)
-                        ],
-                    },
-                    config=config,
-                )
-            except Exception as exc:
+        ) as request_observation:
+            with propagate_attributes(
+                session_id=payload.session_id,
+                user_id=payload.user_id,
+                metadata={"thread_id": payload.thread_id},
+            ):
+                try:
+                    result = await invoke_agent_graph(
+                        agent,
+                        user_message=payload.user_message,
+                        config=config,
+                    )
+                except Exception as exc:
+                    request_observation.update(
+                        level="ERROR",
+                        status_message=str(exc),
+                    )
+                    raise
+
+                response = graph_result_to_agent_response(result)
                 request_observation.update(
-                    level="ERROR",
-                    status_message=str(exc),
+                    output={"message": response.message},
                 )
-                raise
-            messages = result.get("messages") or []
-            if messages and hasattr(messages[-1], "content"):
-                answer = messages[-1].content
-            else:
-                answer = "I'm sorry, I was unable to generate a proper response. Please try rephrasing your query."
 
-            ui_type = result.get("ui_type", "None")
-            data = result.get("hotel_search_results") or {}
-            if not isinstance(data, dict):
-                data = {}
+        langfuse.flush()
+        return response
 
-            follow_up_questions = result.get("follow_up_questions") or []
-            if not isinstance(follow_up_questions, list):
-                follow_up_questions = []
+    return app
 
-            request_observation.update(
-                output={
-                    "message": answer,
-                    "ui_type": ui_type,
-                    "follow_up_questions_count": len(follow_up_questions),
-                }
-            )
 
-    # Flush all pending observations before returning
-    langfuse.flush()
-
-    return AgentResponse(
-        message=answer,
-        ui_type=ui_type,
-        data=data,
-        follow_up_questions=follow_up_questions,
-    )
+app = create_app()
 
 
 if __name__ == "__main__":
