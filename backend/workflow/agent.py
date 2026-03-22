@@ -1,5 +1,5 @@
 from typing import Dict
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, AIMessage
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.redis import RedisSaver
@@ -16,8 +16,6 @@ from .constant import (
     INPUT_GUARDRAIL_NODE,
     FOLLOW_UP_QUESTION_NODE,
     OUTPUT_GUARDRAILS_NODE,
-    SEARCH_RESULT_MAPPER_NODE,
-    MERGER_NODE,
     CHAT_NODE_FALLBACK_MSG,
     INPUT_GUARDRAIL_NODE_FALLBACK_MSG,
     OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG,
@@ -84,14 +82,19 @@ class TravelIntelligenceAgent:
         response = self.llm.invoke(prompt)
 
         classification = response.content.strip().upper()
+        ai_message = None
         if classification == "END":
             classification = END
+            ai_message = AIMessage(content="I appreciate you reaching out, but I'm not able to continue this conversation. I'm here to help with travel planning in a respectful way. If you have any genuine travel questions, I'd be happy to help with those instead.")
         else:
             classification = CHAT_NODE
 
         logger.info("Guardrail classification: %s", classification)
 
-        return {"input_guardrail_decision": classification}
+        out: Dict = {"input_guardrail_decision": classification}
+        if ai_message is not None:
+            out["ai_message"] = ai_message
+        return out
 
     def _input_guardrail_router(self, state: AgentState) -> str:
         return state.get("input_guardrail_decision") or CHAT_NODE
@@ -162,75 +165,29 @@ class TravelIntelligenceAgent:
             "follow_up_questions": response.suggestions
         }
 
-    @safe_llm_call(fallback_msg="")
-    def _search_result_mapper_node(self, state: AgentState) -> Dict:
-
-        # last_message = state["messages"][-1].content
-        # current_date_time = state["current_date_time"]
-        #
-        # system_instruction = FOLLOW_UP_SUGGESTIONS_PROMPT.format(
-        #     last_message=last_message,
-        #     current_date_time=current_date_time
-        # )
-        #
-        # response = self.llm_with_tools.with_structured_output(FollowUpSuggestions).invoke(
-        #     [SystemMessage(content=system_instruction)]
-        # )
-
-        # IMPORTANT:
-        # This node runs in parallel with FOLLOW_UP_QUESTION_NODE.
-        # Returning the full state here causes duplicate writes for keys
-        # like `follow_up_questions`, which raises InvalidUpdateError.
-        return {}
-
-    @safe_llm_call(fallback_msg="")
-    def _join_node(self, state: AgentState) -> AgentState:
-        """
-        Combine outputs from both branches.
-        Assumes both nodes write to state.
-        """
-
-        # # Example: combine outputs safely
-        # follow_up = state.get("follow_up_question")
-        # mapped_results = state.get("mapped_results")
-        #
-        # # You can merge into final response
-        # final_output = {
-        #     "follow_up_question": follow_up,
-        #     "mapped_results": mapped_results
-        # }
-        #
-        # state["final_output"] = final_output
-
-        return state
-
-
     def _build_graph(self) :
 
         graph_builder = StateGraph(AgentState)
 
         graph_builder.add_node(TOOLS_NODE, ToolNode(ALL_TOOLS))
         graph_builder.add_node(INIT_NODE, self._init_node)
-        # graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
+        graph_builder.add_node(INPUT_GUARDRAIL_NODE, self._input_guardrail_node)
         graph_builder.add_node(CHAT_NODE, self._chat_node)
         graph_builder.add_node(OUTPUT_GUARDRAILS_NODE, self._output_guardrail_node)
-        graph_builder.add_node(SEARCH_RESULT_MAPPER_NODE, self._search_result_mapper_node)
         graph_builder.add_node(FOLLOW_UP_QUESTION_NODE, self._follow_up_question_node)
-        graph_builder.add_node(MERGER_NODE, self._join_node)
 
 
         graph_builder.add_edge(START, INIT_NODE)
-        # graph_builder.add_edge(INIT_NODE, INPUT_GUARDRAIL_NODE)
-        # graph_builder.add_conditional_edges(
-        #     INPUT_GUARDRAIL_NODE,
-        #     self._input_guardrail_router,
-        #     {
-        #         CHAT_NODE: CHAT_NODE,
-        #         END: END,
-        #     }
-        # )
-
-        graph_builder.add_edge(INIT_NODE, CHAT_NODE)
+        graph_builder.add_edge(INIT_NODE, INPUT_GUARDRAIL_NODE)
+        graph_builder.add_conditional_edges(
+            INPUT_GUARDRAIL_NODE,
+            self._input_guardrail_router,
+            {
+                CHAT_NODE: CHAT_NODE,
+                END: END,
+            }
+        )
+        
         graph_builder.add_conditional_edges(
             CHAT_NODE,
             tools_condition,
@@ -242,10 +199,7 @@ class TravelIntelligenceAgent:
 
         graph_builder.add_edge(TOOLS_NODE, CHAT_NODE)
         graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, FOLLOW_UP_QUESTION_NODE)
-        graph_builder.add_edge(OUTPUT_GUARDRAILS_NODE, SEARCH_RESULT_MAPPER_NODE)
-        graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, MERGER_NODE)
-        graph_builder.add_edge(SEARCH_RESULT_MAPPER_NODE, MERGER_NODE)
-        graph_builder.add_edge(MERGER_NODE, END)
+        graph_builder.add_edge(FOLLOW_UP_QUESTION_NODE, END)
 
         try:
             redis_client = get_redis_client()
