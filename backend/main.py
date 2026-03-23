@@ -47,7 +47,7 @@ def create_app() -> FastAPI:
         )
         with langfuse.start_as_current_observation(
             name="agent_request",
-            as_type="chain",
+            as_type="span",
             input={"user_message": payload.user_message},
             metadata={"thread_id": payload.thread_id},
         ) as request_observation:
