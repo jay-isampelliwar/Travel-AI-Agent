@@ -142,7 +142,7 @@ class TravelIntelligenceAgent:
         capture_input=True,
         capture_output=True,
     )
-    @safe_llm_call
+    @safe_llm_call(fallback_msg="I'm not able to continue this conversation. I'm here to help with travel planning in a respectful way. If you have any genuine travel questions, I'd be happy to help with those instead.")
     def _input_guardrail_router(self, state: AgentState) -> str:
         return state.get("input_guardrail_decision") or CHAT_NODE
 
