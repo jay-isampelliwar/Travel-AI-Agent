@@ -1,5 +1,7 @@
 from typing import Dict
 from langchain_core.messages import SystemMessage, AIMessage
+from langfuse import get_client
+from langfuse._client.observe import observe
 from langgraph.graph import StateGraph, END, START
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.redis import RedisSaver
@@ -32,13 +34,20 @@ from .prompts import (
 from .model import FollowUpSuggestions
 from workflow.utils.utils import get_current_date_time, bottle_mermaid_png
 from .tools import ALL_TOOLS
-from .services import LLM, TavilySearchService
+from .services import LLM
+from .observability.tracing import (
+    DEFAULT_CHAT_MODEL,
+    lc_messages_to_trace_input,
+    trace_usage_from_message,
+)
 from .utils.safe_llm_decorator import safe_llm_call
 from .utils.logger import get_logger, setup_logging
 
 setup_logging()
 logger = get_logger(__name__)
 
+
+lf = get_client()
 
 def _configure_llm_cache() -> None:
     """Use Redis-backed LLM cache when RedisJSON exists, else fallback."""
@@ -54,7 +63,6 @@ def _configure_llm_cache() -> None:
         )
         set_llm_cache(InMemoryCache())
 
-
 _configure_llm_cache()
 
 class TravelIntelligenceAgent:
@@ -62,108 +70,214 @@ class TravelIntelligenceAgent:
     def __init__(self):
         self.llm = LLM()
         self.llm_with_tools = self.llm.bind_tools(ALL_TOOLS)
-        self.search_service = TavilySearchService()
         self.graph = self._build_graph()
 
+    @safe_llm_call(fallback_msg=INIT_NODE)
     def _init_node(self, state: AgentState) -> Dict:
         logger.info("%s", INIT_NODE)
         logger.info("%s",  (state.get("cycle_count") or 0))
-        return {
-            "current_date_time" : get_current_date_time(),
-            "cycle_count": (state.get("cycle_count") or 0) + 1
-        }
+
+        with lf.start_as_current_observation(
+                as_type="span",
+                name=INPUT_GUARDRAIL_NODE,
+        ) as span:
+            span.update(
+                input={
+                    "current_date_time" : get_current_date_time(),
+                    "cycle_count": (state.get("cycle_count") or 0)
+                })
+            return {
+                "current_date_time": get_current_date_time(),
+                "cycle_count": (state.get("cycle_count") or 0) + 1
+            }
 
     @safe_llm_call(fallback_msg=INPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _input_guardrail_node(self, state: AgentState) -> Dict:
-        logger.info("%s", INPUT_GUARDRAIL_NODE)
-
+        
         user_message = state["messages"][-1].content
-        prompt = INPUT_GUARDRAILS_PROMPT.format(user_message=user_message)
-        response = self.llm.invoke(prompt)
+        with lf.start_as_current_observation(
+            as_type="span",
+            name=INPUT_GUARDRAIL_NODE,
+        ) as span:
+            logger.info("%s", INPUT_GUARDRAIL_NODE)
 
-        classification = response.content.strip().upper()
-        ai_message = None
-        if classification == "END":
-            classification = END
-            ai_message = AIMessage(content="I appreciate you reaching out, but I'm not able to continue this conversation. I'm here to help with travel planning in a respectful way. If you have any genuine travel questions, I'd be happy to help with those instead.")
-        else:
-            classification = CHAT_NODE
+            prompt = INPUT_GUARDRAILS_PROMPT.format(user_message=user_message)
+            with lf.start_as_current_observation(
+                as_type="generation",
+                name="input_guardrail_llm",
+                model=DEFAULT_CHAT_MODEL,
+                input=user_message,
+            ) as gen:
+                response = self.llm.invoke(prompt)
+                gen.update(
+                    output=response.content,
+                    usage_details=trace_usage_from_message(response),
+                )
 
-        logger.info("Guardrail classification: %s", classification)
+            classification = response.content.strip().upper()
+            ai_message = None
 
-        out: Dict = {"input_guardrail_decision": classification}
-        if ai_message is not None:
-            out["ai_message"] = ai_message
-        return out
+            if classification == "END":
+                classification = END
+                ai_message = AIMessage(content="I appreciate you reaching out, but I'm not able to continue this conversation. I'm here to help with travel planning in a respectful way. If you have any genuine travel questions, I'd be happy to help with those instead.")
+            else:
+                classification = CHAT_NODE
 
+            logger.info("Guardrail classification: %s", classification)
+
+            out: Dict = {"input_guardrail_decision": classification}
+
+            if ai_message is not None:
+                out["ai_message"] = ai_message
+
+            span.update(
+                output=ai_message.content
+            )
+
+            return out
+
+
+    @observe(
+        name="input_guardrail_llm",
+        capture_input=True,
+        capture_output=True,
+    )
+    @safe_llm_call
     def _input_guardrail_router(self, state: AgentState) -> str:
         return state.get("input_guardrail_decision") or CHAT_NODE
 
     @safe_llm_call(fallback_msg=CHAT_NODE_FALLBACK_MSG)
     def _chat_node(self, state: AgentState) -> Dict:
-        logger.info("%s", CHAT_NODE)
+        
+        with lf.start_as_current_observation(
+            as_type="span",
+            name=CHAT_NODE,
+            input=state["messages"][-1].content,
+        ) as span:
+            logger.info("%s", CHAT_NODE)
 
-        current_date_time = state["current_date_time"]
+            current_date_time = state["current_date_time"]
 
-        system_instruction = SystemMessage(
-            content=SYSTEM_INSTRUCTION.format(
-                current_date_time=current_date_time,
+            system_instruction = SystemMessage(
+                content=SYSTEM_INSTRUCTION.format(
+                    current_date_time=current_date_time,
+                )
             )
-        )
 
-        messages = state["messages"]
-        response = self.llm_with_tools.invoke([system_instruction] + messages)
+            messages = state["messages"]
+            llm_messages = [system_instruction] + messages
 
-        tool_name = ""
-        if response.tool_calls:
-            tool_call = response.tool_calls[0]
-            tool_name = tool_call["name"]
+            with lf.start_as_current_observation(
+                as_type="generation",
+                name="chat_llm",
+                model=DEFAULT_CHAT_MODEL,
+                input=state["messages"][-1].content,
+            ) as gen:
+                response = self.llm_with_tools.invoke(llm_messages)
+                gen.update(
+                    output=response.content,
+                    usage_details=trace_usage_from_message(response),
+                )
 
-        return {
-            "last_tool_call": tool_name,
-            "messages": [response]
-        }
+            tool_name = ""
+
+            if response.tool_calls:
+                tool_call = response.tool_calls[0]
+                tool_name = tool_call["name"]
+
+            out = {
+                "last_tool_call": tool_name,
+                "messages": [response],
+            }
+
+            span.update(output=response.content)
+
+            return out
 
     @safe_llm_call(fallback_msg=OUTPUT_GUARDRAIL_NODE_FALLBACK_MSG)
     def _output_guardrail_node(self, state: AgentState) -> Dict:
-        logger.info("%s", OUTPUT_GUARDRAILS_NODE)
+        
+        with lf.start_as_current_observation(
+            as_type="span",
+            name=OUTPUT_GUARDRAILS_NODE,
+            input=state["messages"][-1].content,
+        ) as span:
+            logger.info("%s", OUTPUT_GUARDRAILS_NODE)
 
-        user_message = ""
-        for message in reversed(state["messages"]):
-            if getattr(message, "type", "") == "human":
-                user_message = message.content
-                break
+            user_message = ""
 
-        assistant_draft = state["messages"][-1].content
-        prompt = OUTPUT_GUARDRAILS_PROMPT.format(
-            user_message=user_message,
-            assistant_draft=assistant_draft,
-        )
-        response = self.llm.invoke(prompt)
+            for message in reversed(state["messages"]):
+                if getattr(message, "type", "") == "human":
+                    user_message = message.content
+                    break
 
-        return {
-            "messages": [response],
-            "output_guardrail_applied": True,
-        }
+            assistant_draft = state["messages"][-1].content
+            prompt = OUTPUT_GUARDRAILS_PROMPT.format(
+                user_message=user_message,
+                assistant_draft=assistant_draft,
+            )
+
+            with lf.start_as_current_observation(
+                as_type="generation",
+                name="output_guardrail_llm",
+                model=DEFAULT_CHAT_MODEL,
+                input=state["messages"][-1].content,
+            ) as gen:
+                response = self.llm.invoke(prompt)
+                gen.update(
+                    output=response.content,
+                    usage_details=trace_usage_from_message(response),
+                )
+
+            out = {
+                "messages": [response],
+                "output_guardrail_applied": True,
+            }
+
+            span.update(output=response.content)
+
+            return out
 
     @safe_llm_call(fallback_msg=FOLLOW_UP_QUESTION_NODE_FALLBACK_MSG)
     def _follow_up_question_node(self, state: AgentState) -> Dict:
-
+        
         last_message = state["messages"][-1].content
         current_date_time = state["current_date_time"]
 
         system_instruction = FOLLOW_UP_SUGGESTIONS_PROMPT.format(
             last_message=last_message,
-            current_date_time=current_date_time
-            )
+            current_date_time=current_date_time,
+        )
+        sys_msg = SystemMessage(content=system_instruction)
 
-        response = self.llm_with_tools.with_structured_output(FollowUpSuggestions).invoke(
-            [SystemMessage(content=system_instruction)]
-            )
+        with lf.start_as_current_observation(
+            as_type="span",
+            name=FOLLOW_UP_QUESTION_NODE,
+            input=state["messages"][-1].content,
+        ) as span:
+            with lf.start_as_current_observation(
+                as_type="generation",
+                name="follow_up_structured_llm",
+                model=DEFAULT_CHAT_MODEL,
+                input=state["messages"][-1].content,
+            ) as gen:
 
-        return {
-            "follow_up_questions": response.suggestions
-        }
+                response = self.llm_with_tools.with_structured_output(
+                    FollowUpSuggestions
+                ).invoke([sys_msg])
+
+                payload = (
+                    response.model_dump()
+                    if hasattr(response, "model_dump")
+                    else {"suggestions": getattr(response, "suggestions", [])}
+                )
+                gen.update(output=payload["suggestions"])
+
+            out = {"follow_up_questions": response.suggestions}
+
+            span.update(output=response.content)
+
+            return out
 
     def _build_graph(self) :
 

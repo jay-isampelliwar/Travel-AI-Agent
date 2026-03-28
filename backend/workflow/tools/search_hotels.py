@@ -18,7 +18,7 @@ class HotelSearchInput(BaseModel):
 
 class HotelResult(BaseModel):
     """Single hotel option."""
-    name: str
+    name: str = Field(description="Name of the hotel.")
     price_per_night: Optional[str] = None
     rating: Optional[float] = None
     amenities: List[str] = []
